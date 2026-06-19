@@ -128,13 +128,13 @@ async function restoreFromCloudinary() {
     
     for (const filePath of BACKUP_FILES) {
         try {
-            const filename = path.basename(filePath).replace('.json', '');
+            const filename = path.basename(filePath);
             const result = await cloudinary.api.resource(`chatlink_backups/${filename}`, { resource_type: 'raw' });
             if (result && result.secure_url) {
                 const response = await axios.get(result.secure_url, { timeout: 10000 });
                 if (response.data && Object.keys(response.data).length > 0) {
                     fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
-                    console.log(`Restored ${path.basename(filePath)} from Cloudinary`);
+                    console.log(`Restored ${filename} from Cloudinary`);
                 }
             }
         } catch (err) {
