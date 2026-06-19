@@ -466,6 +466,14 @@
       "timestamp": 1781852631796,
       "text": "Ok",
       "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVGMjlERjg2N0ZGRTQwNEI0RkU4NkQyRTk2QTdGNTUA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781855801845,
+      "text": "Is this ok?",
+      "type": "text"
     }
   ]
 }
