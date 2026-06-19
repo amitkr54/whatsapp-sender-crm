@@ -1450,7 +1450,15 @@ function renderChatHistory(phone) {
 
         if (msgType === 'image' || msgType === 'sticker') {
             if (msg.mediaUrl) {
-                contentHtml = `<img src="${msg.mediaUrl}" style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;" onclick="window.open('${msg.mediaUrl}', '_blank')" />`;
+                const proxyUrl = msg.mediaId ? `/media/proxy/${msg.mediaId}` : '';
+                const onerror = proxyUrl ? `onerror="this.onerror=null;this.src='${proxyUrl}'"` : '';
+                contentHtml = `<img src="${msg.mediaUrl}" ${onerror} style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;" onclick="window.open('${msg.mediaUrl}', '_blank')" />`;
+                if (msg.text && msg.text !== '[Image]' && msg.text !== '[Sticker]') {
+                    contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(msg.text)}</span>`;
+                }
+            } else if (msg.mediaId) {
+                const proxyUrl = `/media/proxy/${msg.mediaId}`;
+                contentHtml = `<img src="${proxyUrl}" style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;" />`;
                 if (msg.text && msg.text !== '[Image]' && msg.text !== '[Sticker]') {
                     contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(msg.text)}</span>`;
                 }
@@ -1459,7 +1467,9 @@ function renderChatHistory(phone) {
             }
         } else if (msgType === 'video') {
             if (msg.mediaUrl) {
-                contentHtml = `<video src="${msg.mediaUrl}" controls style="max-width: 250px; border-radius: 8px; margin-bottom: 4px;"></video>`;
+                const proxyUrl = msg.mediaId ? `/media/proxy/${msg.mediaId}` : '';
+                const onerror = proxyUrl ? `onerror="this.onerror=null;this.src='${proxyUrl}'"` : '';
+                contentHtml = `<video src="${msg.mediaUrl}" ${onerror} controls style="max-width: 250px; border-radius: 8px; margin-bottom: 4px;"></video>`;
                 if (msg.text && msg.text !== '[Video]') contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(msg.text)}</span>`;
             } else {
                 contentHtml = `<span style="opacity: 0.7;">🎬 ${msg.text || 'Video'} (loading...)</span>`;

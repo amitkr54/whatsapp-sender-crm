@@ -117,9 +117,54 @@ const MEDIA_DIR = path.join(__dirname, 'media');
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
 app.use('/media', express.static(MEDIA_DIR));
 
+// Proxy endpoint: serve media from Meta API if local file is missing
+app.get('/media/proxy/:mediaId', async (req, res) => {
+    const settings = getSettings();
+    if (!settings.accessToken) return res.status(401).json({ error: 'No token' });
+    
+    const { mediaId } = req.params;
+    const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    // Check if local file exists first
+    const existingFiles = fs.readdirSync(MEDIA_DIR).filter(f => f.startsWith(safeId));
+    if (existingFiles.length > 0) {
+        return res.sendFile(path.join(MEDIA_DIR, existingFiles[0]));
+    }
+    
+    try {
+        const metaRes = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
+            headers: { Authorization: `Bearer ${settings.accessToken}` }
+        });
+        if (!metaRes.data.url) return res.status(404).json({ error: 'No URL' });
+        
+        const fileRes = await axios.get(metaRes.data.url, {
+            headers: { Authorization: `Bearer ${settings.accessToken}` },
+            responseType: 'arraybuffer',
+            timeout: 30000
+        });
+        
+        const contentType = fileRes.headers['content-type'] || 'application/octet-stream';
+        const ext = contentType.split('/')[1]?.split(';')[0] || 'bin';
+        const filename = `${safeId}.${ext}`;
+        const filePath = path.join(MEDIA_DIR, filename);
+        
+        fs.writeFileSync(filePath, fileRes.data);
+        console.log(`Proxy downloaded: ${filename} (${fileRes.data.length} bytes)`);
+        
+        res.set('Content-Type', contentType);
+        res.send(fileRes.data);
+    } catch (err) {
+        console.error('Media proxy error:', err.response?.data || err.message);
+        res.status(500).json({ error: 'Failed to fetch media' });
+    }
+});
+
 async function downloadMedia(mediaId, type, mimeType) {
     const settings = getSettings();
     if (!settings.accessToken) return null;
+    
+    // Sanitize mediaId to be a safe filename
+    const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
     
     try {
         // Step 1: Get the media URL from Meta
@@ -128,18 +173,29 @@ async function downloadMedia(mediaId, type, mimeType) {
         });
         const mediaUrl = metaRes.data.url;
         
+        if (!mediaUrl) {
+            console.error(`Media download: No URL returned for mediaId ${mediaId}`);
+            return null;
+        }
+        
         // Step 2: Download the actual file
-        const ext = mimeType ? '.' + mimeType.split('/')[1].split(';')[0] : '';
-        const filename = `${mediaId}${ext}`;
+        const ext = mimeType ? '.' + mimeType.split('/')[1].split(';')[0] : '.bin';
+        const filename = `${safeId}${ext}`;
         const filePath = path.join(MEDIA_DIR, filename);
         
         const fileRes = await axios.get(mediaUrl, {
             headers: { Authorization: `Bearer ${settings.accessToken}` },
-            responseType: 'arraybuffer'
+            responseType: 'arraybuffer',
+            timeout: 30000
         });
         
+        if (!fileRes.data || fileRes.data.length === 0) {
+            console.error(`Media download: Empty response for ${mediaId}`);
+            return null;
+        }
+        
         fs.writeFileSync(filePath, fileRes.data);
-        console.log(`Media downloaded: ${filename}`);
+        console.log(`Media downloaded: ${filename} (${fileRes.data.length} bytes)`);
         return `/media/${filename}`;
     } catch (err) {
         console.error('Media download error:', err.response?.data || err.message);
