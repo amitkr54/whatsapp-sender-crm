@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1781854050403,
+    "field": "message_template_status_update",
+    "type": "success",
+    "title": "Message Template Status Update",
+    "message": "Template \"signage1\" is now APPROVED",
+    "timestamp": 1781854049661,
+    "rawData": {
+      "event": "APPROVED",
+      "message_template_id": 1675263680570433,
+      "message_template_name": "signage1",
+      "message_template_language": "en",
+      "message_template_category": "MARKETING",
+      "reason": "NONE"
+    }
+  }
+]

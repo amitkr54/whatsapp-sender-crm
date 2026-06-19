@@ -1,0 +1,66 @@
+# Implementation Plan - WhatsApp Cloud API Bulk Sender App (Path A)
+
+We will create a separate, dedicated application in a new directory `c:\Users\Admin\Desktop\whatsapp api sender` that uses the official WhatsApp Business Cloud API. This version will be lightweight, will not run Puppeteer (no heavy browser overhead), will run with zero risk of phone number bans, and will support real-time delivery status via Meta Webhooks.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Requirements for Meta Cloud API:**
+> To use the new app, you will need to:
+> 1. Set up a Meta Developer Account, a WhatsApp Business app, and obtain:
+>    * **Access Token** (Permanent)
+>    * **Phone Number ID**
+>    * **WhatsApp Business Account ID (WABA ID)**
+> 2. Submit and get approval for your message templates in the **Meta Business Manager** (usually approved in minutes).
+> 3. Provide a public URL (e.g. via ngrok or your hosting provider) to configure the Webhook callback URL in the Meta Dashboard if you want to track live "Delivered" and "Read" receipts.
+
+---
+
+## Proposed Changes
+
+We will create the new project at `c:\Users\Admin\Desktop\whatsapp api sender`.
+
+### 1. New Project Files
+
+#### [NEW] [package.json](file:///c:/Users/Admin/Desktop/whatsapp%20api%20sender/package.json)
+Initializes dependencies for the API app, removing heavy browser automation dependencies:
+- **Keep:** `express`, `socket.io`, `csv-parser`, `xlsx`, `multer`
+- **Add:** `axios` (for REST API calls)
+- **Remove:** `puppeteer-extra`, `puppeteer-extra-plugin-stealth`, `whatsapp-web.js`, `qrcode`, `qrcode-terminal`
+
+#### [NEW] [server.js](file:///c:/Users/Admin/Desktop/whatsapp%20api%20sender/server.js)
+Backend server rewritten to interface with Meta Cloud API instead of Puppeteer:
+- Load API credentials from a local file `settings.json`.
+- Implement a campaign loop that maps CSV rows to Meta template parameters and fires `axios.post` to `https://graph.facebook.com/v20.0/<PhoneNumberID>/messages`.
+- Implement a `/webhook` GET/POST endpoint to verify and receive webhook events (Delivered, Read, Sent, Failed) from Meta and forward them to the UI using socket.io.
+- Maintain campaign checkpoints, history, and status logging without running standard client browsers.
+
+#### [NEW] [public/index.html](file:///c:/Users/Admin/Desktop/whatsapp%20api%20sender/public/index.html)
+Modified front-end dashboard:
+- Replace the QR code modal and browser links with an API Credential Settings card.
+- Redesign the Campaign Creator tab: Replace raw textareas with:
+  - **Template Name** input field (e.g., `marketing_broadcast`).
+  - **Language Code** selection/input (e.g., `en`).
+  - **Variable mapping** input: Define which CSV columns to map to template variables (e.g., mapping column `Name` to `{{1}}` and `Offer` to `{{2}}`).
+- Retain reports, logs, and history layouts.
+
+#### [NEW] [public/script.js](file:///c:/Users/Admin/Desktop/whatsapp%20api%20sender/public/script.js)
+Refactored front-end controller:
+- Connect to socket.io and load/save settings containing API credentials.
+- Handle template naming and variable mapping submission.
+- Render incoming webhook-based status changes (Delivered/Read/Failed) immediately.
+
+#### [NEW] [public/style.css](file:///c:/Users/Admin/Desktop/whatsapp%20api%20sender/public/style.css)
+Copy of the modern premium CSS stylesheet to preserve the visual appearance of the dashboard.
+
+---
+
+## Verification Plan
+
+### Automated/Local Tests
+1. **Dependency Install:** Run `npm install` in the new folder.
+2. **Server Execution:** Start the server with `node server.js` and verify it serves the UI on `http://localhost:3000`.
+3. **API Connection Test:** Verify credentials can be saved and connection verified against Meta's API.
+4. **Local Webhook Verification:** Verify that hitting `/webhook` with standard webhook mock payloads updates the status in the UI.

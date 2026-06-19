@@ -1,0 +1,471 @@
+{
+  "16315551181": [
+    {
+      "id": "ABGGFlA5Fpa",
+      "from": "16315551181",
+      "to": "me",
+      "text": "this is a text message",
+      "timestamp": 1779687420994,
+      "status": "delivered"
+    }
+  ],
+  "undefined": [
+    {
+      "id": "ABGGFlA5Fpa",
+      "to": "me",
+      "text": "[Non-text message]",
+      "timestamp": 1779687941998
+    }
+  ],
+  "919958657208": [
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVDN0FENjk2NEU0MjUxQTgxQThFMDk1MUZFMDY0OTMA",
+      "from": "919958657208",
+      "to": "me",
+      "text": "Ok test",
+      "timestamp": 1779689432023
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTUyQjU0QjFGMDNEQjc4RjE5MDg3NTlEMzE1NTRBMTIA",
+      "from": "919958657208",
+      "to": "me",
+      "text": "Hello",
+      "timestamp": 1779691220339
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSQUREQjBEODVBMTgzMjI3QjI1AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "ok test it again",
+      "timestamp": 1779691611173,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDE2N0MwOTFFNkI2Q0VCNjIyMwA=",
+      "from": "919958657208",
+      "to": "me",
+      "text": "helloo how r u?",
+      "timestamp": 1779691642763
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMEI1MzgxM0UwQTdGRTcxMDFBQQA=",
+      "from": "919958657208",
+      "to": "me",
+      "text": "[Non-text message]",
+      "timestamp": 1779691663236
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMENDOTVERTc1NDkyNTU4N0Q0NAA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779691939372,
+      "type": "document",
+      "text": "[Document]",
+      "mediaId": "1515658640351797",
+      "mimeType": "application/pdf",
+      "filename": "PI for Metal Signage.pdf",
+      "mediaUrl": "/media/1515658640351797.pdf"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDdGOUM5RkNFOTdCRkM3OTBBRAA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779691961067,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "854502373785961",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/854502373785961.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSNkYzQkE5RkQ4MzBGREM0QjgyAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "helloo how r y",
+      "timestamp": 1779702491117,
+      "status": "delivered"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDVDREZGRTcxNzNCQUY1NDAyMQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779703331252,
+      "text": "helloo",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSQThBQzg4NTkyNzI4N0NDMUVCAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "test 1",
+      "timestamp": 1779703353970,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTU0RENCQTk0MUQyRERCQzVFMDRDMjI5QUYyMzEwNTEA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779705372442,
+      "text": "Ok",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDUwMjdFOTU5NjhCOUZBMDlGQwA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779709580211,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1950459756344265",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1950459756344265.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDVEQjJDRDQxODFENjE1MjQ4MAA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779711272140,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "4316362351984399",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/4316362351984399.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTUzNEFGNTdFMkI3NjQxNzk0NURBRDY3MTREM0NFRjIA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779711758682,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "975216582106149",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/975216582106149.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVFMzA3ODc1REY2RTUxMjAzMjcyRDAyMzVFQzAzM0EA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712077164,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1739303154091287",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1739303154091287.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVGNkU4OEMwNjJBREZDODcyMUY3QTNGNTMxQzhCQkYA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712172694,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "2042434629692970",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/2042434629692970.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTUxMTc3MDMwQ0EwNjdBQTk2OUMwQkE3MkUyNDkxQUMA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712223267,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1862373074433671",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1862373074433671.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVCOUZBRUFGM0NEMTAzREZGNjFCQzQyQ0MyMUNCNEUA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712247459,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1000271589401373",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1000271589401373.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTUyNUZDNzQ0OTNGQjEzNUE3OTkyNUVBRTI3M0IyMEEA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712286022,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "2169606887127814",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/2169606887127814.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDg0NjZDNjA2NjU0MDEyMzNEQgA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779712506876,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "2092194725055223",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/2092194725055223.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDQ1MTgyNUVBODIwMjdDRUExMQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1779715118457,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1266962052174771",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1266962052174771.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSRUE2QzQ1NjdDRUY1MTg4NTJDAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "hi",
+      "timestamp": 1781475924180,
+      "status": "sent"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSNUM1NkMxRDQyRjk4NENBRUQ4AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "[Campaign: signage_template_with_stop]",
+      "type": "template",
+      "timestamp": 1781505216590,
+      "status": "failed"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMUQ4MzQxMDZGOTlEMzZGMzczAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "[Campaign: signage_template_with_stop]",
+      "type": "template",
+      "timestamp": 1781505361960,
+      "status": "failed"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSNEJFREY1MDI2ODI0NTkzMTRCAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "[Campaign: hello_world]",
+      "type": "template",
+      "timestamp": 1781505789168,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSQkMwNDlGOTM3RkREQzZFMzUyAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Welcome and congratulations!! This message demonstrates your ability to send a WhatsApp message notification from the Cloud API, hosted by Meta. Thank you for taking the time to test with us.",
+      "type": "template",
+      "timestamp": 1781506612633,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDJGMjFCNjE0Q0JCMUU0QjM1OQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781506918347,
+      "text": "helloo",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSODc4RkVGRTFGMTk5MjRGRDlEAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "*Hello World*\r\n\r\nWelcome and congratulations!! This message demonstrates your ability to send a WhatsApp message notification from the Cloud API, hosted by Meta. Thank you for taking the time to test with us.\r\n\r\n_WhatsApp Business Platform sample message_",
+      "type": "template",
+      "timestamp": 1781507113255,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDJDMDI1QTQzQjZFMDI0RDU4QQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781509122277,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1512914390499867",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1512914390499867.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSNjc5M0MxODE2OENEQ0IyODM0AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Hello Sir/Ma'am,\r\n\r\nI'm Pankaj Thakur from Sign & Display Solutions. We specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nOur work includes:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "timestamp": 1781584217303,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMEI5QzIzQjRFNTM2M0I4N0M5AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Hello Sir/Ma'am,\r\n\r\nI'm Pankaj Thakur from Sign & Display Solutions. We specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nOur work includes:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "timestamp": 1781584831772,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTUxNzExQ0U5RDEyMzFFNkEwOTQ1NUQwN0UyMTA2NzgA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781584928951,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1568513107939312",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1568513107939312.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSOUQ0OUYzRDFDNDczNDgzQjMzAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Hello Sir/Ma'am,\r\n\r\nI'm Pankaj Thakur from Sign & Display Solutions. We specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nOur work includes:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "timestamp": 1781644671873,
+      "status": "sent"
+    },
+    {
+      "id": "test1234",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781685292070,
+      "text": "10 x 4 ka 4 sheet",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSRjhEMTZCRDAyODkwOTJDNEY0AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "helloo how are you",
+      "timestamp": 1781686072047,
+      "status": "sent"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSNEMyMTg0MzhCNThBNERFQzE1AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "ok test this",
+      "type": "text",
+      "timestamp": 1781688203112,
+      "status": "sent"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMUVDQjI1ODJCMUNDNTA0NUVCAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "[image]",
+      "type": "image",
+      "timestamp": 1781688277539,
+      "status": "sent",
+      "mediaUrl": "/media/wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMUVDQjI1ODJCMUNDNTA0NUVCAA==.jpg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSRTI1QkRGRjdFOTQyRTIyQkIwAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "helloo",
+      "type": "text",
+      "timestamp": 1781691752836,
+      "status": "sent"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDcyOTcwOERFRUI3NjJEMjE4OAA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781693962132,
+      "text": "fir se dekh le bhai",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMEE3QjY1QjY2REM0MTc4QjQzQQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781694020661,
+      "type": "image",
+      "text": "[Image]",
+      "mediaId": "1295175429267061",
+      "mimeType": "image/jpeg",
+      "mediaUrl": "/media/1295175429267061.jpeg"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMTQxMEEzNUQzQTk1NEZFMjA1AA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Hi, looking for signage for your project? We provide:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nWe specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 https://signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "headerType": null,
+      "headerImageUrl": null,
+      "timestamp": 1781694091642,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTVDMjdEODU0QjE1QjNCMThCOEY4MjQyNUEwOUM1RjYA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781694186568,
+      "text": "Ok",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSMzk2NjA2RUVCQTJGNjk3QUUzAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Signage Solution for your project. We provide:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nWe specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 https://signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "headerType": "IMAGE",
+      "headerImageUrl": "/media/lib_1207199641460796.png",
+      "timestamp": 1781794650197,
+      "status": "sent"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSM0NGNzIzRTM4QTQzQ0NDQTVBAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "Signage Solution for your project. We provide:\r\n• 3D LED Letters & Illuminated Fascia\r\n• Reception Signage & Lobby Nameplates  \r\n• Directional & Wayfinding Systems\r\n• Safety & Fire Exit Boards (NBC Compliant)\r\n\r\nWe specialize in manufacturing premium signage for architectural & interior projects.\r\n\r\nIf you have any signage requirement for your upcoming projects, I'd be happy to share our portfolio and a free estimate.\r\n\r\n🌐 https://signageworks.in\r\n\r\nThanks & Regards,\r\nPankaj Thakur\r\n📞 9958657208\r\nSign & Display Solutions\r\n\r\nReply STOP to opt out",
+      "type": "template",
+      "headerType": "IMAGE",
+      "headerImageUrl": "https://signageworks.in/og-image.png",
+      "timestamp": 1781795070193,
+      "status": "failed"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhgWM0VCMDM3QTRENzE1QzRENDkzNEFDMQA=",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781847738156,
+      "text": "helloo",
+      "type": "text"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSOTJBMDE5RjAxRDNFNDJGMUNGAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "how are you?",
+      "type": "text",
+      "timestamp": 1781847754398,
+      "status": "read"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAERgSQTAxOTM2OUY3MTM0RDhGN0VDAA==",
+      "from": "me",
+      "to": "919958657208",
+      "text": "what do u say?",
+      "type": "text",
+      "timestamp": 1781852390797,
+      "status": "delivered"
+    },
+    {
+      "id": "wamid.HBgMOTE5OTU4NjU3MjA4FQIAEhggQTU0OTE5M0M4RURBRkU5Rjc4QjMyRjczNDgxMTNCRjIA",
+      "from": "919958657208",
+      "to": "me",
+      "timestamp": 1781852631796,
+      "text": "Ok",
+      "type": "text"
+    }
+  ]
+}
