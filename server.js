@@ -76,6 +76,73 @@ function saveJson(file, data) {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+// --- Cloudinary Backup (persists across Render deploys) ---
+const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE];
+
+async function backupToCloudinary() {
+    const settings = getSettings();
+    if (!settings.cloudinaryCloudName || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) return;
+    
+    cloudinary.config({
+        cloud_name: settings.cloudinaryCloudName,
+        api_key: settings.cloudinaryApiKey,
+        api_secret: settings.cloudinaryApiSecret
+    });
+    
+    for (const filePath of BACKUP_FILES) {
+        try {
+            if (!fs.existsSync(filePath)) continue;
+            const data = fs.readFileSync(filePath, 'utf8');
+            const filename = path.basename(filePath);
+            const buffer = Buffer.from(data);
+            
+            await new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream({
+                    folder: 'chatlink_backups',
+                    public_id: filename.replace('.json', ''),
+                    resource_type: 'raw',
+                    format: 'json',
+                    overwrite: true
+                }, (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                });
+                stream.end(buffer);
+            });
+        } catch (err) {
+            console.error(`Backup failed for ${path.basename(filePath)}:`, err.message);
+        }
+    }
+    console.log('Cloudinary backup completed');
+}
+
+async function restoreFromCloudinary() {
+    const settings = getSettings();
+    if (!settings.cloudinaryCloudName || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) return;
+    
+    cloudinary.config({
+        cloud_name: settings.cloudinaryCloudName,
+        api_key: settings.cloudinaryApiKey,
+        api_secret: settings.cloudinaryApiSecret
+    });
+    
+    for (const filePath of BACKUP_FILES) {
+        try {
+            const filename = path.basename(filePath).replace('.json', '');
+            const result = await cloudinary.api.resource(`chatlink_backups/${filename}`, { resource_type: 'raw' });
+            if (result && result.secure_url) {
+                const response = await axios.get(result.secure_url, { timeout: 10000 });
+                if (response.data && Object.keys(response.data).length > 0) {
+                    fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
+                    console.log(`Restored ${path.basename(filePath)} from Cloudinary`);
+                }
+            }
+        } catch (err) {
+            if (err.http_code !== 404) console.error(`Restore failed for ${path.basename(filePath)}:`, err.message);
+        }
+    }
+}
+
 function getSettings() {
     return getJson(SETTINGS_FILE, { accessToken: '', phoneNumberId: '', wabaId: '', verifyToken: 'whatsapp123' });
 }
@@ -1440,7 +1507,7 @@ process.on('unhandledRejection', (err) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
     console.log(`\n========================================`);
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`========================================`);
@@ -1450,5 +1517,26 @@ server.listen(PORT, () => {
         console.log(`Cloud URL: ${process.env.APP_URL}`);
         console.log(`Webhook URL: ${process.env.APP_URL}/webhook`);
     }
+
+    // Restore data from Cloudinary backup on startup
+    try {
+        await restoreFromCloudinary();
+    } catch (err) {
+        console.error('Cloudinary restore failed:', err.message);
+    }
+
+    // Backup to Cloudinary every 5 minutes
+    setInterval(async () => {
+        try { await backupToCloudinary(); } catch (e) { console.error('Auto-backup error:', e.message); }
+    }, 5 * 60 * 1000);
+
+    // Backup on shutdown
+    const shutdown = async () => {
+        console.log('Shutting down, backing up data...');
+        try { await backupToCloudinary(); } catch (e) {}
+        process.exit(0);
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
 });
 
