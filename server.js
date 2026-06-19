@@ -15,8 +15,8 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 // --- Auth ---
-const AUTH_USER = 'admin';
-const AUTH_PASS = 'chatlink2026';
+const AUTH_USER = 'pankaj_thakur87';
+const AUTH_PASS = 'Aayush@123';
 const authTokens = new Set();
 
 function generateToken() {
