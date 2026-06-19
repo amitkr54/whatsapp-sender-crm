@@ -115,9 +115,9 @@ function normalizePhone(raw) {
 // --- Media Download Helper ---
 const MEDIA_DIR = path.join(__dirname, 'media');
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
-app.use('/media', express.static(MEDIA_DIR));
 
 // Proxy endpoint: serve media from Meta API if local file is missing
+// MUST be before express.static so it doesn't get intercepted
 app.get('/media/proxy/:mediaId', async (req, res) => {
     const settings = getSettings();
     if (!settings.accessToken) return res.status(401).json({ error: 'No token' });
@@ -158,6 +158,8 @@ app.get('/media/proxy/:mediaId', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch media' });
     }
 });
+
+app.use('/media', express.static(MEDIA_DIR));
 
 async function downloadMedia(mediaId, type, mimeType) {
     const settings = getSettings();
