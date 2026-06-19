@@ -28,7 +28,7 @@ function saveAuthorizedMachines(list) {
 }
 
 function requireAuth(req, res, next) {
-    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/webhook-url' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js' || req.path === '/login.html' || !req.path.startsWith('/api/')) return next();
+    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/ping' || req.path === '/api/webhook-url' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js' || req.path === '/login.html' || !req.path.startsWith('/api/')) return next();
     const machineId = req.headers['x-machine-id'];
     if (machineId && getAuthorizedMachines().includes(machineId)) return next();
     return res.status(401).json({ error: 'Unauthorized' });
@@ -1497,6 +1497,8 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
     }
 }
 // Cloud deployment: use app's own URL for webhooks
+app.get('/api/ping', (req, res) => { res.json({ status: 'ok', time: new Date().toISOString() }); });
+
 app.get('/api/webhook-url', async (req, res) => {
     // In cloud, the app's URL is the webhook URL
     const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
