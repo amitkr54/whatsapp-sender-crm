@@ -143,7 +143,7 @@
             <button class="icon-btn" title="Attach file" onclick="document.getElementById('chat-media-input').click()" style="width: 38px; height: 38px; border-radius: 50%;">
                 <i data-lucide="paperclip" style="width: 20px;"></i>
             </button>
-            <input type="text" id="chat-reply-input" placeholder="Type a message" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatReply()}" style="flex: 1; background-color: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-main); border-radius: var(--radius-pill); padding: 11px 18px; outline: none; font-size: 14px; transition: all var(--transition);">
+            <input type="text" id="chat-reply-input" placeholder="Type a message" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatReply()}" style="flex: 1; background-color: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text-main); border-radius: var(--radius-pill); padding: 11px 18px; outline: none; font-size: 14px; transition: all var(--transition);">
             <button class="icon-btn send-btn" title="Send message" onclick="sendChatReply()" style="width: 42px; height: 42px; background: var(--accent); color: white; border-radius: 50%; transition: all var(--transition); box-shadow: 0 2px 8px rgba(0,168,132,0.3);">
                 <i data-lucide="send" style="width: 18px;"></i>
             </button>
