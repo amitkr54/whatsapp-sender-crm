@@ -1225,6 +1225,14 @@ io.on('connection', (socket) => {
     console.log('Client connected to socket');
 });
 
+// Global error handlers - prevent crashes
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err.message || err);
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`\n========================================`);
