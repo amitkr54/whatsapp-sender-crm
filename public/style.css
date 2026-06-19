@@ -1551,11 +1551,12 @@ textarea {
         top: 0;
         left: 0;
         right: 0;
-        bottom: 60px;
+        bottom: 120px;
         z-index: 90;
         background: var(--bg-dark);
         transform: translateX(100%);
         transition: transform 0.3s ease;
+        overflow: hidden;
     }
 
     #tab-inbox > div:nth-child(2).active-mobile {
@@ -1564,17 +1565,52 @@ textarea {
 
     /* Chat header on mobile */
     #chat-header {
-        padding: 10px 12px !important;
-        min-height: 52px !important;
+        padding: 8px 10px !important;
+        min-height: 48px !important;
+        gap: 4px !important;
+    }
+
+    #chat-header h3, #chat-header [style*="font-size: 16px"] {
+        font-size: 13px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
+    }
+
+    #chat-header .avatar-circle {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 12px !important;
+    }
+
+    #chat-header span[style*="font-size: 12px"] {
+        font-size: 10px !important;
     }
 
     #chat-header button {
-        padding: 8px !important;
+        padding: 6px !important;
+    }
+
+    #chat-header .icon-btn {
+        width: 30px !important;
+        height: 30px !important;
+    }
+
+    #chat-header .icon-btn i {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    #btn-send-template-inbox {
+        font-size: 11px !important;
+        padding: 5px 10px !important;
     }
 
     /* Chat history */
     #chat-history {
         padding: 10px !important;
+        padding-bottom: 70px !important;
     }
 
     .msg-sent, .msg-rcvd {
@@ -1585,13 +1621,38 @@ textarea {
 
     /* Chat input */
     #chat-input-area {
-        padding: 10px 12px !important;
+        padding: 8px 10px !important;
+        background: var(--sidebar-bg) !important;
+        border-top: 1px solid var(--border);
+        position: fixed;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+        z-index: 91;
+        gap: 6px !important;
     }
 
     #chat-input-area input,
     #chat-input-area textarea {
         font-size: 16px !important;
         padding: 10px 14px !important;
+        min-height: 40px;
+    }
+
+    #chat-input-area .icon-btn {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+    }
+
+    #chat-input-area .icon-btn i {
+        width: 18px !important;
+        height: 18px !important;
+    }
+
+    #chat-input-area .send-btn {
+        width: 38px !important;
+        height: 38px !important;
     }
 
     /* Chat profile sidebar */
