@@ -872,7 +872,28 @@ app.post('/api/chat/send', upload.single('file'), async (req, res) => {
             const filename = newMsg.id + ext;
             const dest = path.join(__dirname, 'media', filename);
             fs.copyFileSync(req.file.path, dest);
-            newMsg.mediaUrl = '/media/' + filename;
+
+            // Upload to Cloudinary if configured
+            const stgs = getSettings();
+            const hasCloudinary = stgs.cloudinaryCloudName && stgs.cloudinaryApiKey && stgs.cloudinaryApiSecret;
+            if (hasCloudinary) {
+                try {
+                    cloudinary.config({
+                        cloud_name: stgs.cloudinaryCloudName,
+                        api_key: stgs.cloudinaryApiKey,
+                        api_secret: stgs.cloudinaryApiSecret
+                    });
+                    const result = await cloudinary.uploader.upload(dest, { folder: 'whatsapp_media', resource_type: 'auto' });
+                    newMsg.mediaUrl = result.secure_url;
+                    console.log(`Outgoing media uploaded to Cloudinary: ${result.secure_url}`);
+                } catch (cloudErr) {
+                    console.error('Cloudinary upload failed for outgoing:', cloudErr.message);
+                    newMsg.mediaUrl = '/media/' + filename;
+                }
+            } else {
+                newMsg.mediaUrl = '/media/' + filename;
+            }
+
             if (msgType === 'document') newMsg.filename = req.file.originalname;
             try { fs.unlinkSync(req.file.path); } catch(e) {}
         }
