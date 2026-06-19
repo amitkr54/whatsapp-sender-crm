@@ -46,6 +46,9 @@ app.use('/media', express.static(path.join(__dirname, 'media')));
 if (!fs.existsSync(path.join(__dirname, 'media'))) {
     fs.mkdirSync(path.join(__dirname, 'media'));
 }
+if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
+    fs.mkdirSync(path.join(__dirname, 'uploads'));
+}
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -869,6 +872,33 @@ app.post('/api/queue/stop', (req, res) => {
 async function runQueueBatch(queue, batchSize, settings) {
     isCampaignRunning = true;
     try {
+    // If queue has headerUrl but no headerMediaId, convert URL to media_id first
+    if (!queue.headerMediaId && queue.headerUrl && queue.headerType && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(queue.headerType)) {
+        try {
+            console.log(`runQueueBatch: Converting headerUrl to media_id: ${queue.headerUrl}`);
+            const imageResponse = await axios.get(queue.headerUrl, { responseType: 'arraybuffer', timeout: 30000 });
+            const ext = queue.headerUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)?.[0] || '.jpg';
+            const tempFile = path.join(__dirname, 'uploads', `queue_default_${Date.now()}${ext}`);
+            fs.writeFileSync(tempFile, Buffer.from(imageResponse.data));
+            const formData = new FormData();
+            formData.append('messaging_product', 'whatsapp');
+            formData.append('file', fs.createReadStream(tempFile), {
+                filename: `queue_default${ext}`,
+                contentType: imageResponse.headers['content-type'] || 'image/jpeg'
+            });
+            const uploadRes = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/media`, formData, {
+                headers: { ...formData.getHeaders(), Authorization: `Bearer ${settings.accessToken}` }
+            });
+            queue.headerMediaId = uploadRes.data.id;
+            saveJson(QUEUE_FILE, queue);
+            console.log(`runQueueBatch: headerUrl converted to media_id: ${queue.headerMediaId}`);
+            try { fs.unlinkSync(tempFile); } catch(e) {}
+        } catch (err) {
+            console.error('runQueueBatch: Failed to convert headerUrl to media_id:', err.response?.data || err.message);
+            throw new Error('Failed to upload template header image: ' + JSON.stringify(err.response?.data || err.message));
+        }
+    }
+
     const start = queue.sentIndex;
     const end = Math.min(start + batchSize, queue.contacts.length);
     const batch = queue.contacts.slice(start, end);
@@ -911,6 +941,7 @@ async function runQueueBatch(queue, batchSize, settings) {
         
         try {
             const langCode = queue.languageCode || 'en';
+            console.log(`[Queue Campaign] Sending to ${phone} | template: ${queue.templateName} | components: ${JSON.stringify(components)}`);
             const response = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/messages`, {
                 messaging_product: 'whatsapp',
                 to: phone,
@@ -918,6 +949,7 @@ async function runQueueBatch(queue, batchSize, settings) {
                 template: { name: queue.templateName, language: { code: langCode }, components }
             }, { headers: { 'Authorization': `Bearer ${settings.accessToken}`, 'Content-Type': 'application/json' } });
             const msgId = response.data.messages[0].id;
+            console.log(`[Queue Campaign] Sent to ${phone} | msgId: ${msgId}`);
             
             let previewText = `[Campaign: ${queue.templateName}]`;
             if (queue.templateBody) {
@@ -1083,6 +1115,34 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
             try { fs.unlinkSync(headerFile.path); } catch(e) {}
             return res.status(500).json({ error: 'Failed to upload header media: ' + JSON.stringify(err.response?.data || err.message) });
         }
+    } else if (headerUrl && requiresHeader) {
+        // Template default URL or user-provided URL — download and re-upload to Meta to get a permanent media_id
+        // Meta CDN URLs expire, so we must convert them to media_ids before sending
+        try {
+            console.log(`Downloading template default image from URL and re-uploading to Meta: ${headerUrl}`);
+            const imageResponse = await axios.get(headerUrl, { responseType: 'arraybuffer', timeout: 30000 });
+            const ext = headerUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)?.[0] || '.jpg';
+            const tempFile = path.join(__dirname, 'uploads', `template_default_${Date.now()}${ext}`);
+            fs.writeFileSync(tempFile, Buffer.from(imageResponse.data));
+
+            const formData = new FormData();
+            formData.append('messaging_product', 'whatsapp');
+            formData.append('file', fs.createReadStream(tempFile), {
+                filename: `template_default${ext}`,
+                contentType: imageResponse.headers['content-type'] || 'image/jpeg'
+            });
+
+            const uploadRes = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/media`, formData, {
+                headers: { ...formData.getHeaders(), Authorization: `Bearer ${settings.accessToken}` }
+            });
+
+            headerMediaId = uploadRes.data.id;
+            console.log(`Template default image uploaded to Meta, media_id: ${headerMediaId}`);
+            try { fs.unlinkSync(tempFile); } catch(e) {}
+        } catch (err) {
+            console.error('Failed to upload template default URL to Meta:', err.response?.data || err.message);
+            return res.status(500).json({ error: 'Failed to upload template default image: ' + JSON.stringify(err.response?.data || err.message) });
+        }
     }
 
     const parseAndStart = (rawList) => {
@@ -1157,6 +1217,7 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
         
         try {
             const langCode = languageCode || 'en';
+            console.log(`[Campaign] Sending to ${phone} | template: ${templateName} | components: ${JSON.stringify(components)}`);
             const response = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/messages`, {
                 messaging_product: 'whatsapp',
                 to: phone,
@@ -1164,6 +1225,7 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
                 template: { name: templateName, language: { code: langCode }, components }
             }, { headers: { 'Authorization': `Bearer ${settings.accessToken}`, 'Content-Type': 'application/json' } });
             const msgId = response.data.messages[0].id;
+            console.log(`[Campaign] Sent to ${phone} | msgId: ${msgId}`);
             
             let previewText = `[Campaign: ${templateName}]`;
             if (templateBody) {
