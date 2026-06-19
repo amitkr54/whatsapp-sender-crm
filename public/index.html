@@ -74,7 +74,7 @@
             </div>
             <div style="position: relative;">
                 <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-faint); pointer-events: none;"></i>
-                <input type="search" class="inbox-search" id="chat-search-input" placeholder="Search chats..." autocomplete="off" data-lpignore="true" data-1p-ignore="true" oninput="filterChatList(this.value)">
+                <input type="search" class="inbox-search" id="chat-search-input" placeholder="Search chats..." autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" data-lpignore="true" data-1p-ignore="true" oninput="filterChatList(this.value)">
             </div>
         </div>
         <div id="chat-list" style="flex: 1; overflow-y: auto;">
