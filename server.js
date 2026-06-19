@@ -8,6 +8,7 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const xlsx = require('xlsx');
 const FormData = require('form-data');
+const cloudinary = require('cloudinary').v2;
 const crypto = require('crypto');
 
 const app = express();
@@ -131,6 +132,17 @@ app.get('/media/proxy/:mediaId', async (req, res) => {
         return res.sendFile(path.join(MEDIA_DIR, existingFiles[0]));
     }
     
+    // Check Cloudinary
+    const hasCloudinary = settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret;
+    if (hasCloudinary) {
+        try {
+            const result = await cloudinary.api.resource(`whatsapp_media/${safeId}`);
+            if (result && result.secure_url) {
+                return res.redirect(result.secure_url);
+            }
+        } catch(e) {}
+    }
+    
     try {
         const metaRes = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
             headers: { Authorization: `Bearer ${settings.accessToken}` }
@@ -165,8 +177,17 @@ async function downloadMedia(mediaId, type, mimeType) {
     const settings = getSettings();
     if (!settings.accessToken) return null;
     
-    // Sanitize mediaId to be a safe filename
     const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    // Configure Cloudinary if credentials are available
+    const hasCloudinary = settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret;
+    if (hasCloudinary) {
+        cloudinary.config({
+            cloud_name: settings.cloudinaryCloudName,
+            api_key: settings.cloudinaryApiKey,
+            api_secret: settings.cloudinaryApiSecret
+        });
+    }
     
     try {
         // Step 1: Get the media URL from Meta
@@ -183,7 +204,6 @@ async function downloadMedia(mediaId, type, mimeType) {
         // Step 2: Download the actual file
         const ext = mimeType ? '.' + mimeType.split('/')[1].split(';')[0] : '.bin';
         const filename = `${safeId}${ext}`;
-        const filePath = path.join(MEDIA_DIR, filename);
         
         const fileRes = await axios.get(mediaUrl, {
             headers: { Authorization: `Bearer ${settings.accessToken}` },
@@ -196,8 +216,31 @@ async function downloadMedia(mediaId, type, mimeType) {
             return null;
         }
         
+        // Step 3a: Upload to Cloudinary if configured
+        if (hasCloudinary) {
+            try {
+                const result = await new Promise((resolve, reject) => {
+                    const uploadStream = cloudinary.uploader.upload_stream({
+                        folder: 'whatsapp_media',
+                        public_id: safeId,
+                        resource_type: 'auto'
+                    }, (error, result) => {
+                        if (error) reject(error);
+                        else resolve(result);
+                    });
+                    uploadStream.end(Buffer.from(fileRes.data));
+                });
+                console.log(`Cloudinary uploaded: ${filename} -> ${result.secure_url}`);
+                return result.secure_url;
+            } catch (cloudErr) {
+                console.error('Cloudinary upload failed, falling back to local:', cloudErr.message);
+            }
+        }
+        
+        // Step 3b: Save locally as fallback
+        const filePath = path.join(MEDIA_DIR, filename);
         fs.writeFileSync(filePath, fileRes.data);
-        console.log(`Media downloaded: ${filename} (${fileRes.data.length} bytes)`);
+        console.log(`Media downloaded locally: ${filename} (${fileRes.data.length} bytes)`);
         return `/media/${filename}`;
     } catch (err) {
         console.error('Media download error:', err.response?.data || err.message);
