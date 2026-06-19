@@ -121,19 +121,12 @@
                     <div id="chat-history" style="flex: 1; overflow-y: auto; padding: 20px 60px; display: flex; flex-direction: column; gap: 4px; background-color: #0b141a; background-image: url('https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png'); background-size: 400px; background-repeat: repeat; opacity: 0.9;">
                         <!-- Messages injected here -->
                     </div>
-        <div id="chat-media-preview" class="hidden" style="padding: 10px 20px; background-color: rgba(32,44,51,0.95); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; backdrop-filter: blur(10px);">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div id="chat-media-thumb" style="width: 44px; height: 44px; border-radius: 8px; overflow: hidden; background: rgba(0,168,132,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <i data-lucide="file" style="width: 18px; color: var(--accent);"></i>
+        <div id="chat-media-preview" class="hidden" style="background-color: var(--sidebar-bg); border-top: 1px solid var(--border);">
+            <div style="position: relative; display: inline-block; margin: 10px 20px 0 20px;">
+                <div id="chat-media-thumb" style="border-radius: 8px; overflow: hidden; background: #1f2c34; max-height: 220px; display: flex; align-items: center; justify-content: center;">
                 </div>
-                <div style="display: flex; flex-direction: column;">
-                    <span id="chat-media-name" style="color: var(--text-main); font-weight: 500;">filename.jpg</span>
-                    <span id="chat-media-size" style="color: var(--text-dim); font-size: 11px;"></span>
-                </div>
+                <button onclick="clearChatMedia()" style="position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,0.6); border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px;">&times;</button>
             </div>
-            <button class="icon-btn" onclick="clearChatMedia()" style="width: 30px; height: 30px; border-radius: 50%;">
-                <i data-lucide="x" style="width: 15px;"></i>
-            </button>
         </div>
         <div id="chat-input-area" style="padding: 12px 20px; background-color: var(--sidebar-bg); display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border);" class="hidden">
             <button class="icon-btn" title="Emoji" style="width: 38px; height: 38px; border-radius: 50%;">

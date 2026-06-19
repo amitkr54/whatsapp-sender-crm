@@ -1554,24 +1554,17 @@ function handleChatMediaSelect(event) {
     const file = event.target.files[0];
     if (file) {
         currentChatMedia = file;
-        document.getElementById('chat-media-name').innerText = file.name;
-        const sizeKB = (file.size / 1024).toFixed(1);
-        const sizeStr = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
-        document.getElementById('chat-media-size').innerText = sizeStr;
         const thumb = document.getElementById('chat-media-thumb');
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                thumb.innerHTML = `<img src="${e.target.result}" style="width:44px;height:44px;object-fit:cover;display:block;" />`;
-                if (typeof lucide !== 'undefined') lucide.createIcons();
+                thumb.innerHTML = `<img src="${e.target.result}" style="max-height:220px;max-width:100%;border-radius:8px;display:block;" />`;
             };
             reader.readAsDataURL(file);
         } else if (file.type.startsWith('video/')) {
-            thumb.innerHTML = `<i data-lucide="film" style="width:18px;color:var(--accent);"></i>`;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            thumb.innerHTML = `<div style="padding:40px;color:var(--accent);font-size:40px;">&#127909;</div>`;
         } else {
-            thumb.innerHTML = `<i data-lucide="file" style="width:18px;color:var(--accent);"></i>`;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            thumb.innerHTML = `<div style="padding:40px;color:var(--accent);font-size:40px;">&#128196;</div>`;
         }
         document.getElementById('chat-media-preview').classList.remove('hidden');
     }
