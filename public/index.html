@@ -123,10 +123,13 @@
                     </div>
         <div id="chat-media-preview" class="hidden" style="padding: 10px 20px; background-color: rgba(32,44,51,0.95); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 13px; backdrop-filter: blur(10px);">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(0,168,132,0.12); display: flex; align-items: center; justify-content: center;">
+                <div id="chat-media-thumb" style="width: 44px; height: 44px; border-radius: 8px; overflow: hidden; background: rgba(0,168,132,0.12); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                     <i data-lucide="file" style="width: 18px; color: var(--accent);"></i>
                 </div>
-                <span id="chat-media-name" style="color: var(--text-main); font-weight: 500;">filename.jpg</span>
+                <div style="display: flex; flex-direction: column;">
+                    <span id="chat-media-name" style="color: var(--text-main); font-weight: 500;">filename.jpg</span>
+                    <span id="chat-media-size" style="color: var(--text-dim); font-size: 11px;"></span>
+                </div>
             </div>
             <button class="icon-btn" onclick="clearChatMedia()" style="width: 30px; height: 30px; border-radius: 50%;">
                 <i data-lucide="x" style="width: 15px;"></i>
