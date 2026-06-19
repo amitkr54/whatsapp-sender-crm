@@ -27,7 +27,7 @@ function generateToken() {
 }
 
 function requireAuth(req, res, next) {
-    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/webhook-url' || req.path === '/login.html' || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js') return next();
+    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/webhook-url' || req.path === '/login.html' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js') return next();
     const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
     if (token && authTokens.has(token)) return next();
     if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
