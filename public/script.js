@@ -7,6 +7,11 @@ if (!authToken && !window.location.pathname.includes('login')) {
     window.location.href = '/login.html';
 }
 
+// Clean token from URL after page load
+if (window.location.search.includes('token=')) {
+    window.history.replaceState({}, document.title, '/');
+}
+
 const _origFetch = window.fetch;
 window.fetch = function(url, opts = {}) {
     if (typeof url === 'string' && !url.includes('/api/login')) {
