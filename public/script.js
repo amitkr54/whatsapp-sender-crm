@@ -1,6 +1,31 @@
 const socket = io();
 let currentChatPhone = null;
 
+// --- Auth ---
+const authToken = localStorage.getItem('auth_token');
+if (!authToken && !window.location.pathname.includes('login')) {
+    window.location.href = '/login.html';
+}
+
+const _origFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+    if (typeof url === 'string' && !url.includes('/api/login')) {
+        opts.headers = opts.headers || {};
+        if (opts.headers instanceof Headers) {
+            opts.headers.set('Authorization', 'Bearer ' + authToken);
+        } else {
+            opts.headers['Authorization'] = 'Bearer ' + authToken;
+        }
+    }
+    return _origFetch.call(this, url, opts).then(res => {
+        if (res.status === 401 && !url.includes('/api/login')) {
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login.html';
+        }
+        return res;
+    });
+};
+
 // Clear browser autofill from search input
 window.addEventListener('load', () => {
     const searchInput = document.getElementById('chat-search-input');

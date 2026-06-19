@@ -8,11 +8,30 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const xlsx = require('xlsx');
 const FormData = require('form-data');
-// ngrok is used externally for tunneling (run: ngrok http 3000)
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// --- Auth ---
+const AUTH_USER = 'admin';
+const AUTH_PASS = 'chatlink2026';
+const authTokens = new Set();
+
+function generateToken() {
+    const token = crypto.randomBytes(32).toString('hex');
+    authTokens.add(token);
+    return token;
+}
+
+function requireAuth(req, res, next) {
+    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/webhook-url') return next();
+    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
+    if (token && authTokens.has(token)) return next();
+    if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
+    return res.redirect('/login.html');
+}
 
 app.use((req, res, next) => {
     console.log(`[HTTP] ${req.method} ${req.url}`);
@@ -20,6 +39,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+app.use(requireAuth);
 app.use(express.static('public'));
 app.use('/media', express.static(path.join(__dirname, 'media')));
 
@@ -125,6 +145,14 @@ async function downloadMedia(mediaId, type, mimeType) {
 }
 
 // --- Settings API ---
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === AUTH_USER && password === AUTH_PASS) {
+        return res.json({ success: true, token: generateToken() });
+    }
+    res.json({ success: false });
+});
+
 app.get('/api/settings', (req, res) => res.json(getSettings()));
 app.post('/api/settings', (req, res) => {
     saveJson(SETTINGS_FILE, req.body);
