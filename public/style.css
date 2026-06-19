@@ -928,6 +928,15 @@ textarea {
     border-top-right-radius: 2px;
 }
 
+.msg-image {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+.msg-image img {
+    display: block;
+}
+
 .msg-rcvd {
     background-color: #202c33;
     align-self: flex-start;

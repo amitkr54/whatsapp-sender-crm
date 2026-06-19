@@ -1449,7 +1449,8 @@ function renderChatHistory(phone) {
         }
 
         const div = document.createElement('div');
-        div.className = `msg-bubble ${isMe ? 'msg-sent' : 'msg-rcvd'}`;
+        const isImageOnly = (msg.type === 'image' || msg.type === 'sticker') && msg.mediaUrl && !(msg.text || '').replace(/\[image\]|\[Image\]|\[sticker\]|\[Sticker\]/gi, '').trim();
+        div.className = `msg-bubble ${isMe ? 'msg-sent' : 'msg-rcvd'}${isImageOnly ? ' msg-image' : ''}`;
         
         let statusIcon = '';
         if (isMe && msg.status) {
@@ -1466,15 +1467,17 @@ function renderChatHistory(phone) {
             if (msg.mediaUrl) {
                 const proxyUrl = msg.mediaId ? `/media/proxy/${msg.mediaId}` : '';
                 const onerror = proxyUrl ? `onerror="this.onerror=null;this.src='${proxyUrl}'"` : '';
-                contentHtml = `<img src="${msg.mediaUrl}" ${onerror} style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;" onclick="window.open('${msg.mediaUrl}', '_blank')" />`;
-                if (msg.text && msg.text !== '[Image]' && msg.text !== '[Sticker]') {
-                    contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(msg.text)}</span>`;
+                contentHtml = `<img src="${msg.mediaUrl}" ${onerror} style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 0;" onclick="window.open('${msg.mediaUrl}', '_blank')" />`;
+                const caption = (msg.text || '').replace(/\[image\]|\[Image\]|\[sticker\]|\[Sticker\]/gi, '').trim();
+                if (caption) {
+                    contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(caption)}</span>`;
                 }
             } else if (msg.mediaId) {
                 const proxyUrl = `/media/proxy/${msg.mediaId}`;
-                contentHtml = `<img src="${proxyUrl}" style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;" />`;
-                if (msg.text && msg.text !== '[Image]' && msg.text !== '[Sticker]') {
-                    contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(msg.text)}</span>`;
+                contentHtml = `<img src="${proxyUrl}" style="max-width: 250px; border-radius: 8px; cursor: pointer; margin-bottom: 0;" />`;
+                const caption = (msg.text || '').replace(/\[image\]|\[Image\]|\[sticker\]|\[Sticker\]/gi, '').trim();
+                if (caption) {
+                    contentHtml += `<span style="margin-top: 4px;">${renderWhatsAppFormatting(caption)}</span>`;
                 }
             } else {
                 contentHtml = `<span style="opacity: 0.7;">📷 ${msg.text || 'Image'} (loading...)</span>`;
