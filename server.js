@@ -966,7 +966,8 @@ async function runQueueBatch(queue, batchSize, settings) {
             const headerImageUrl = (() => {
                 if (queue.headerType === 'IMAGE' && queue.headerMediaId) {
                     const lib = getMediaLibrary();
-                    return lib.find(e => e.id === queue.headerMediaId)?.localUrl || null;
+                    const found = lib.find(e => e.id === queue.headerMediaId);
+                    if (found) return found.localUrl;
                 }
                 return queue.headerUrl || null;
             })();
@@ -1138,6 +1139,25 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
 
             headerMediaId = uploadRes.data.id;
             console.log(`Template default image uploaded to Meta, media_id: ${headerMediaId}`);
+
+            // Save locally and add to media library so chat UI can display it
+            try {
+                const filename = `lib_${headerMediaId}${ext}`;
+                const dest = path.join(__dirname, 'media', filename);
+                fs.copyFileSync(tempFile, dest);
+                const library = getMediaLibrary();
+                library.unshift({
+                    id: headerMediaId,
+                    name: `template_default${ext}`,
+                    filename: `template_default${ext}`,
+                    localUrl: `/media/${filename}`,
+                    uploadedAt: Date.now()
+                });
+                saveJson(MEDIA_LIBRARY_FILE, library);
+                console.log(`Template default image saved to library: ${headerMediaId}`);
+            } catch(libErr) {
+                console.error('Failed to save template default image to library:', libErr.message);
+            }
             try { fs.unlinkSync(tempFile); } catch(e) {}
         } catch (err) {
             console.error('Failed to upload template default URL to Meta:', err.response?.data || err.message);
@@ -1242,7 +1262,8 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
             const headerImageUrlD = (() => {
                 if (headerType === 'IMAGE' && headerMediaId) {
                     const lib = getMediaLibrary();
-                    return lib.find(e => e.id === headerMediaId)?.localUrl || null;
+                    const found = lib.find(e => e.id === headerMediaId);
+                    if (found) return found.localUrl;
                 }
                 return headerUrl || null;
             })();
