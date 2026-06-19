@@ -1399,3 +1399,300 @@ textarea {
 .typing-dot:nth-child(1) { animation: typingDot 1.2s infinite 0s; }
 .typing-dot:nth-child(2) { animation: typingDot 1.2s infinite 0.2s; }
 .typing-dot:nth-child(3) { animation: typingDot 1.2s infinite 0.4s; }
+
+/* ===================== MOBILE RESPONSIVE ===================== */
+
+/* --- Tablet (768px and below) --- */
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+        height: 100vh;
+        height: 100dvh;
+    }
+
+    /* Sidebar becomes bottom nav */
+    .sidebar {
+        width: 100% !important;
+        flex-direction: row;
+        height: 60px;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        padding: 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        background: var(--sidebar-bg);
+        justify-content: space-around;
+    }
+
+    .sidebar:hover {
+        width: 100% !important;
+    }
+
+    .logo {
+        display: none;
+    }
+
+    .nav-item {
+        flex-direction: column;
+        gap: 2px;
+        padding: 8px 4px;
+        border-radius: 0;
+        width: auto;
+        min-width: 0;
+        justify-content: center;
+    }
+
+    .nav-item::before {
+        display: none;
+    }
+
+    .nav-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    .nav-text {
+        font-size: 10px;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+
+    .sidebar:hover .nav-text,
+    .sidebar:not(:hover) .nav-text {
+        opacity: 1;
+        transform: none;
+    }
+
+    .sidebar:hover .logo-text {
+        display: none;
+    }
+
+    .sidebar:hover nav {
+        padding: 0;
+        gap: 0;
+    }
+
+    .sidebar:hover .nav-item {
+        width: auto;
+        padding: 8px 4px;
+    }
+
+    /* Main content takes remaining space */
+    .main-content {
+        flex: 1;
+        padding: 12px 14px;
+        padding-bottom: 70px;
+        overflow-y: auto;
+    }
+
+    h1 {
+        font-size: 20px;
+    }
+
+    header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Stats row */
+    .stats-row {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .stat-card {
+        min-width: calc(50% - 10px);
+        padding: 14px !important;
+    }
+
+    .stat-value {
+        font-size: 22px !important;
+    }
+
+    /* Cards */
+    .card {
+        padding: 16px;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* Account grid */
+    .account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Inbox layout */
+    #tab-inbox.active {
+        flex-direction: column;
+    }
+
+    /* Chat list panel */
+    #tab-inbox > div:first-child {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border);
+    }
+
+    #tab-inbox > div:first-child.hidden-mobile {
+        display: none !important;
+    }
+
+    /* Chat panel */
+    #tab-inbox > div:nth-child(2) {
+        width: 100% !important;
+        flex: 1;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 60px;
+        z-index: 90;
+        background: var(--bg-dark);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+
+    #tab-inbox > div:nth-child(2).active-mobile {
+        transform: translateX(0);
+    }
+
+    /* Chat header on mobile */
+    #chat-header {
+        padding: 10px 12px !important;
+        min-height: 52px !important;
+    }
+
+    #chat-header button {
+        padding: 8px !important;
+    }
+
+    /* Chat history */
+    #chat-history {
+        padding: 10px !important;
+    }
+
+    .msg-sent, .msg-rcvd {
+        max-width: 85% !important;
+        font-size: 14px;
+        padding: 8px 12px !important;
+    }
+
+    /* Chat input */
+    #chat-input-area {
+        padding: 10px 12px !important;
+    }
+
+    #chat-input-area input,
+    #chat-input-area textarea {
+        font-size: 16px !important;
+        padding: 10px 14px !important;
+    }
+
+    /* Chat profile sidebar */
+    #chat-profile-sidebar {
+        position: fixed !important;
+        top: 0;
+        right: 0;
+        bottom: 60px;
+        width: 100% !important;
+        z-index: 95;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+
+    #chat-profile-sidebar.active {
+        transform: translateX(0) !important;
+    }
+
+    /* Back button for chat on mobile */
+    .mobile-back-btn {
+        display: flex !important;
+    }
+
+    /* Tables */
+    table {
+        font-size: 13px;
+    }
+
+    thead th {
+        font-size: 12px;
+        padding: 10px 8px !important;
+    }
+
+    tbody td {
+        padding: 10px 8px !important;
+    }
+
+    /* Forms */
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+    }
+
+    /* Campaign tab */
+    .campaign-option-card {
+        padding: 12px !important;
+    }
+
+    /* Toast */
+    #toast-container {
+        bottom: 70px !important;
+    }
+}
+
+/* --- Small phone (480px and below) --- */
+@media (max-width: 480px) {
+    .main-content {
+        padding: 10px;
+        padding-bottom: 70px;
+    }
+
+    h1 {
+        font-size: 18px;
+    }
+
+    .stat-card {
+        min-width: 100%;
+    }
+
+    .msg-sent, .msg-rcvd {
+        max-width: 90% !important;
+    }
+
+    #chat-input-area {
+        gap: 6px !important;
+    }
+
+    #chat-input-area .btn {
+        padding: 10px !important;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* --- Desktop (above 768px) - hide mobile-only elements --- */
+@media (min-width: 769px) {
+    .mobile-back-btn {
+        display: none !important;
+    }
+
+    #tab-inbox > div:first-child.hidden-mobile {
+        display: flex !important;
+    }
+
+    #tab-inbox > div:nth-child(2) {
+        transform: none !important;
+        position: relative !important;
+    }
+}

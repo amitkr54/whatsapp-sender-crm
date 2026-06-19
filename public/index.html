@@ -91,6 +91,9 @@
     <div style="flex: 1; display: flex; flex-direction: column; background-color: var(--bg-dark); min-width: 0;">
         <div id="chat-header" style="padding: 12px 20px; background-color: var(--sidebar-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); min-height: 62px;">
             <div style="display: flex; align-items: center; gap: 14px;">
+                <button class="mobile-back-btn" onclick="showChatList()" style="display:none; background:none; border:none; color:var(--accent); cursor:pointer; padding:8px; margin-right:4px;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
                 <div class="avatar-circle" style="width: 42px; height: 42px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                     <i data-lucide="user" style="width: 22px; height: 22px; color: #cfd9df;"></i>
                     <div id="chat-header-avatar-status" style="display: none; position: absolute; bottom: 0; right: 0; width: 11px; height: 11px; background: var(--accent); border: 2px solid var(--sidebar-bg); border-radius: 50%;"></div>

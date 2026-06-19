@@ -1109,6 +1109,31 @@ function exportContacts() {
 }
 
 // Chat Profile Right Sidebar Panel
+// --- Mobile Navigation ---
+function isMobile() { return window.innerWidth <= 768; }
+
+function showChatList() {
+    const chatList = document.querySelector('#tab-inbox > div:first-child');
+    const chatPanel = document.querySelector('#tab-inbox > div:nth-child(2)');
+    if (chatList) chatList.style.display = 'flex';
+    if (chatPanel) {
+        chatPanel.classList.remove('active-mobile');
+        chatPanel.style.display = 'none';
+    }
+}
+
+function showChatPanel() {
+    const chatList = document.querySelector('#tab-inbox > div:first-child');
+    const chatPanel = document.querySelector('#tab-inbox > div:nth-child(2)');
+    if (isMobile()) {
+        if (chatList) chatList.style.display = 'none';
+        if (chatPanel) {
+            chatPanel.style.display = 'flex';
+            chatPanel.classList.add('active-mobile');
+        }
+    }
+}
+
 function toggleChatProfileSidebar(state = null) {
     const sidebar = document.getElementById('chat-profile-sidebar');
     const toggleBtn = document.getElementById('btn-toggle-profile');
@@ -1351,6 +1376,9 @@ function openChat(phone) {
     
     document.getElementById('chat-header').innerHTML = `
         <div style="display: flex; align-items: center; gap: 14px;">
+            <button class="mobile-back-btn" onclick="showChatList()" style="display:none; background:none; border:none; color:var(--accent); cursor:pointer; padding:4px; margin-right:2px;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
             <div class="avatar-circle" style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(0,168,132,0.2), rgba(0,168,132,0.05)); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: -0.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                 ${initials}
             </div>
@@ -1379,6 +1407,7 @@ function openChat(phone) {
     
     renderChatHistory(phone);
     renderChatProfileSidebar(phone);
+    showChatPanel();
 }
 
 function renderChatHistory(phone) {
