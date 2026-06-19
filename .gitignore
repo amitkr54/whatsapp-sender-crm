@@ -7,3 +7,8 @@ media/
 Thumbs.db
 implementation plan/
 docker-compose.yml
+chats.json
+contacts.json
+notifications.json
+media_library.json
+campaign_queue.json
