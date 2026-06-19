@@ -18,18 +18,19 @@ const io = new Server(server);
 // --- Auth ---
 const AUTH_USER = 'pankaj_thakur87';
 const AUTH_PASS = 'Aayush@123';
-const authTokens = new Set();
+const AUTHORIZED_MACHINES_FILE = path.join(__dirname, 'authorized_machines.json');
 
-function generateToken() {
-    const token = crypto.randomBytes(32).toString('hex');
-    authTokens.add(token);
-    return token;
+function getAuthorizedMachines() {
+    return getJson(AUTHORIZED_MACHINES_FILE, []);
+}
+function saveAuthorizedMachines(list) {
+    fs.writeFileSync(AUTHORIZED_MACHINES_FILE, JSON.stringify(list, null, 2));
 }
 
 function requireAuth(req, res, next) {
     if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/webhook-url' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js' || req.path === '/login.html' || !req.path.startsWith('/api/')) return next();
-    const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token;
-    if (token && authTokens.has(token)) return next();
+    const machineId = req.headers['x-machine-id'];
+    if (machineId && getAuthorizedMachines().includes(machineId)) return next();
     return res.status(401).json({ error: 'Unauthorized' });
 }
 
@@ -76,7 +77,7 @@ function saveJson(file, data) {
 }
 
 // --- Cloudinary Backup (persists across Render deploys) ---
-const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE];
+const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE, AUTHORIZED_MACHINES_FILE];
 
 async function backupToCloudinary() {
     const settings = getSettings();
@@ -316,9 +317,18 @@ async function downloadMedia(mediaId, type, mimeType) {
 
 // --- Settings API ---
 app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, machineId } = req.body;
     if (username === AUTH_USER && password === AUTH_PASS) {
-        return res.json({ success: true, token: generateToken() });
+        // Register this device permanently
+        if (machineId) {
+            const machines = getAuthorizedMachines();
+            if (!machines.includes(machineId)) {
+                machines.push(machineId);
+                saveAuthorizedMachines(machines);
+                console.log(`New device registered: ${machineId}`);
+            }
+        }
+        return res.json({ success: true });
     }
     res.json({ success: false });
 });

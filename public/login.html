@@ -111,21 +111,31 @@
     <script>
         async function login(e) {
             e.preventDefault();
+            // Generate machine ID (same logic as script.js)
+            let machineId = localStorage.getItem('machine_id');
+            if (!machineId) {
+                const fp = [navigator.userAgent, screen.width+'x'+screen.height, screen.colorDepth, Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.language, navigator.hardwareConcurrency].join('|');
+                let hash = 0;
+                for (let i = 0; i < fp.length; i++) { const chr = fp.charCodeAt(i); hash = ((hash << 5) - hash) + chr; hash |= 0; }
+                machineId = 'machine_' + Math.abs(hash).toString(36) + '_' + Date.now().toString(36);
+                localStorage.setItem('machine_id', machineId);
+            }
             const res = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: document.getElementById('username').value,
-                    password: document.getElementById('password').value
+                    password: document.getElementById('password').value,
+                    machineId: machineId
                 })
             });
             const data = await res.json();
             if (data.success) {
-                localStorage.setItem('auth_token', data.token);
-                window.location.href = '/?token=' + data.token;
+                window.location.href = '/';
             } else {
                 document.getElementById('error').style.display = 'block';
             }
+        }
         }
     </script>
 </body>

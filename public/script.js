@@ -1,31 +1,45 @@
 const socket = io();
 let currentChatPhone = null;
 
-// --- Auth ---
-const authToken = localStorage.getItem('auth_token');
-if (!authToken && !window.location.pathname.includes('login')) {
-    window.location.href = '/login.html';
+// --- Machine ID Auth ---
+function getMachineId() {
+    let id = localStorage.getItem('machine_id');
+    if (!id) {
+        // Generate stable ID from browser fingerprint
+        const fp = [
+            navigator.userAgent,
+            screen.width + 'x' + screen.height,
+            screen.colorDepth,
+            Intl.DateTimeFormat().resolvedOptions().timeZone,
+            navigator.language,
+            navigator.hardwareConcurrency
+        ].join('|');
+        // Simple hash
+        let hash = 0;
+        for (let i = 0; i < fp.length; i++) {
+            const chr = fp.charCodeAt(i);
+            hash = ((hash << 5) - hash) + chr;
+            hash |= 0;
+        }
+        id = 'machine_' + Math.abs(hash).toString(36) + '_' + Date.now().toString(36);
+        localStorage.setItem('machine_id', id);
+    }
+    return id;
 }
-
-// Clean token from URL after page load
-if (window.location.search.includes('token=')) {
-    window.history.replaceState({}, document.title, '/');
-}
+const machineId = getMachineId();
 
 const _origFetch = window.fetch;
 window.fetch = function(url, opts = {}) {
-    if (typeof url === 'string' && !url.includes('/api/login')) {
-        opts.headers = opts.headers || {};
-        if (opts.headers instanceof Headers) {
-            opts.headers.set('Authorization', 'Bearer ' + authToken);
-        } else {
-            opts.headers['Authorization'] = 'Bearer ' + authToken;
-        }
+    opts.headers = opts.headers || {};
+    if (opts.headers instanceof Headers) {
+        opts.headers.set('X-Machine-Id', machineId);
+    } else {
+        opts.headers['X-Machine-Id'] = machineId;
     }
     return _origFetch.call(this, url, opts).then(res => {
         if (res.status === 401 && !url.includes('/api/login')) {
-            localStorage.removeItem('auth_token');
-            window.location.href = '/login.html';
+            showToast && showToast('Session expired. Please log in again.', 'error');
+            setTimeout(() => { window.location.href = '/login.html'; }, 2000);
         }
         return res;
     });
@@ -1888,7 +1902,26 @@ socket.on('campaign_finished', (data) => {
 });
 
 // Socket Realtime
+// Notification sound using Web Audio API
+function playNotificationSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+    } catch(e) {}
+}
+
 socket.on('incoming_message', (data) => {
+    playNotificationSound();
     showToast(`💬 New message from ${data.contact?.name || data.phone}`, 'info');
     loadContacts();
     loadInboxList().then(() => {
