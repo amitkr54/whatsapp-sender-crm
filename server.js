@@ -1205,12 +1205,8 @@ app.post('/api/chat/send', upload.single('file'), async (req, res) => {
                 } catch(e) { console.error('Cloudinary upload for outgoing media failed:', e.message); }
             }
             try { fs.unlinkSync(req.file.path); } catch(e) {}
-            } else {
-                newMsg.mediaUrl = '/media/' + filename;
-            }
 
             if (msgType === 'document') newMsg.filename = req.file.originalname;
-            try { fs.unlinkSync(req.file.path); } catch(e) {}
         }
         
         chats[phone].push(newMsg);
