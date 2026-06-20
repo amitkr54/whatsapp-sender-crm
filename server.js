@@ -1122,9 +1122,38 @@ app.post('/webhook', (req, res) => {
                             msgRecord.type = 'contact';
                             const c = msg.contacts?.[0];
                             msgRecord.text = `👤 Contact: ${c?.name?.formatted_name || 'Unknown'}`;
+                        } else if (msg.type === 'unsupported') {
+                            msgRecord.type = 'text';
+                            msgRecord.text = `[Message type not supported by your WhatsApp version]`;
+                        } else if (msg.type === 'button') {
+                            msgRecord.type = 'text';
+                            msgRecord.text = msg.button?.text || msg.button?.payload || '[Button reply]';
+                        } else if (msg.type === 'interactive') {
+                            const interactive = msg.interactive;
+                            if (interactive?.type === 'list_reply') {
+                                msgRecord.type = 'text';
+                                msgRecord.text = interactive.list_reply?.title || interactive.list_reply?.id || '[List selection]';
+                            } else if (interactive?.type === 'button_reply') {
+                                msgRecord.type = 'text';
+                                msgRecord.text = interactive.button_reply?.title || interactive.button_reply?.id || '[Button reply]';
+                            } else {
+                                msgRecord.type = 'text';
+                                msgRecord.text = JSON.stringify(interactive) || '[Interactive message]';
+                            }
+                        } else if (msg.type === 'order') {
+                            msgRecord.type = 'text';
+                            msgRecord.text = msg.order?.catalog_id ? `🛒 Order from catalog` : '🛒 Order message';
+                            msgRecord.catalogId = msg.order?.catalog_id;
+                        } else if (msg.type === 'system') {
+                            msgRecord.type = 'text';
+                            msgRecord.text = msg.system?.body || `[System message: ${msg.system?.type || 'update'}]`;
+                        } else if (msg.type === 'reaction') {
+                            msgRecord.type = 'text';
+                            const emoji = msg.reaction?.emoji || '👍';
+                            msgRecord.text = `${emoji} Reacted to a message`;
                         } else {
-                            msgRecord.type = msg.type || 'unknown';
-                            msgRecord.text = `[${msg.type || 'Unknown'} message]`;
+                            msgRecord.type = msg.type || 'text';
+                            msgRecord.text = `[${msg.type || 'Message'}]`;
                         }
 
                         // 3. Save Chat
@@ -2187,6 +2216,7 @@ server.listen(PORT, async () => {
         const CORRECT_IMG = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
         const chats = getChats();
         let imgFixed = 0;
+        let unsupportedFixed = 0;
         for (const [phone, msgs] of Object.entries(chats)) {
             for (const msg of msgs) {
                 if (msg.type === 'template' && msg.from === 'me') {
@@ -2195,11 +2225,16 @@ server.listen(PORT, async () => {
                     msg.headerType = 'IMAGE';
                     if (old !== CORRECT_IMG) imgFixed++;
                 }
+                if (msg.type === 'unsupported') {
+                    msg.type = 'text';
+                    msg.text = '[Message type not supported by your WhatsApp version]';
+                    unsupportedFixed++;
+                }
             }
         }
-        if (imgFixed > 0) {
+        if (imgFixed > 0 || unsupportedFixed > 0) {
             saveJson(CHATS_FILE, chats);
-            console.log(`[Startup] Fixed ${imgFixed} template header image URLs`);
+            console.log(`[Startup] Fixed ${imgFixed} image URLs, ${unsupportedFixed} unsupported message types`);
         }
     } catch (err) {
         console.error('Image fix failed:', err.message);
