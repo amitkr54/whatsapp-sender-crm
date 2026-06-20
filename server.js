@@ -416,6 +416,47 @@ app.delete('/api/media-library/:id', (req, res) => {
     res.json({ success: true });
 });
 
+// One-time fix: backfill headerImageUrl for template messages missing it
+app.post('/api/fix-images', (req, res) => {
+    const settings = getSettings();
+    const chats = getChats();
+    const lib = getMediaLibrary();
+    let fixed = 0;
+
+    for (const [phone, msgs] of Object.entries(chats)) {
+        for (const msg of msgs) {
+            if (msg.type === 'template' && msg.from === 'me') {
+                // Fix missing headerImageUrl
+                if (!msg.headerImageUrl) {
+                    // Try to find from media library
+                    if (msg.headerMediaId) {
+                        const found = lib.find(e => e.id === msg.headerMediaId);
+                        if (found && found.url) {
+                            msg.headerImageUrl = found.url;
+                            msg.headerType = 'IMAGE';
+                            fixed++;
+                            continue;
+                        }
+                    }
+                    // Use the template's default header URL from Cloudinary
+                    // signage_ template image
+                    msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
+                    msg.headerType = 'IMAGE';
+                    fixed++;
+                }
+                // Fix broken /media/ URLs
+                if (msg.headerImageUrl && msg.headerImageUrl.startsWith('/media/')) {
+                    msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
+                    fixed++;
+                }
+            }
+        }
+    }
+    saveJson(CHATS_FILE, chats);
+    backupToCloudinary(CHATS_FILE).catch(() => {});
+    res.json({ success: true, fixed });
+});
+
 // --- Template Sync (AiSensy Style) ---
 app.get('/api/templates/sync', async (req, res) => {
     const settings = getSettings();
