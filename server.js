@@ -67,6 +67,7 @@ const CONTACTS_FILE = path.join(__dirname, 'contacts.json');
 const CHATS_FILE = path.join(__dirname, 'chats.json');
 const NOTIFICATIONS_FILE = path.join(__dirname, 'notifications.json');
 const QUEUE_FILE = path.join(__dirname, 'campaign_queue.json');
+const SCHEDULED_FILE = path.join(__dirname, 'scheduled_campaigns.json');
 const MEDIA_LIBRARY_FILE = path.join(__dirname, 'media_library.json');
 
 function getMediaLibrary() {
@@ -86,7 +87,7 @@ function saveJson(file, data) {
 }
 
 // --- Cloudinary Backup (persists across Render deploys) ---
-const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE, AUTHORIZED_MACHINES_FILE];
+const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE, AUTHORIZED_MACHINES_FILE, SCHEDULED_FILE];
 
 async function backupToCloudinary() {
     const settings = getSettings();
@@ -1380,6 +1381,237 @@ app.post('/api/queue/stop', (req, res) => {
     isCampaignRunning = false;
     res.json({ success: true, message: 'Stop signal sent.' });
 });
+
+// ─── SCHEDULED CAMPAIGNS ───
+function getScheduledCampaigns() {
+    return getJson(SCHEDULED_FILE, []);
+}
+function saveScheduledCampaigns(list) {
+    saveJson(SCHEDULED_FILE, list);
+}
+
+// Schedule API: Create a scheduled campaign
+app.post('/api/schedule/create', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'headerFile', maxCount: 1 }]), async (req, res) => {
+    if (isCampaignRunning) return res.status(400).json({ error: 'A campaign is already running' });
+
+    const { templateName, templateBody, languageCode, mapping, campaignName, headerUrl, headerType, scheduleTime } = req.body;
+    const mappingObj = JSON.parse(mapping || '{}');
+    const dailyLimit = parseInt(req.body.dailyLimit) || 0;
+    const skipExisting = req.body.skipExisting === 'true';
+    const skipInCRM = req.body.skipInCRM === 'true';
+    const settings = getSettings();
+    if (!settings.accessToken || !settings.phoneNumberId) return res.status(400).json({ error: 'API credentials missing.' });
+
+    if (!scheduleTime) return res.status(400).json({ error: 'Schedule time is required' });
+    const scheduleDate = new Date(scheduleTime);
+    if (isNaN(scheduleDate.getTime()) || scheduleDate <= new Date()) {
+        return res.status(400).json({ error: 'Schedule time must be in the future' });
+    }
+
+    const contactsFile = req.files && req.files.file ? req.files.file[0] : null;
+    const headerFile = req.files && req.files.headerFile ? req.files.headerFile[0] : null;
+    if (!contactsFile) return res.status(400).json({ error: 'No CSV/Excel file uploaded' });
+
+    // Handle header media
+    let headerMediaId = null;
+    const savedMediaId = req.body.savedMediaId || null;
+    const requiresHeader = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType);
+    if (requiresHeader && !savedMediaId && !headerFile && !headerUrl) {
+        return res.status(400).json({ error: `This template requires a ${headerType.toLowerCase()} header.` });
+    }
+
+    if (savedMediaId) {
+        headerMediaId = savedMediaId;
+    } else if (headerFile) {
+        try {
+            const formData = new FormData();
+            formData.append('messaging_product', 'whatsapp');
+            formData.append('file', fs.createReadStream(headerFile.path), { filename: headerFile.originalname, contentType: headerFile.mimetype });
+            const uploadRes = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/media`, formData, {
+                headers: { ...formData.getHeaders(), Authorization: `Bearer ${settings.accessToken}` }
+            });
+            headerMediaId = uploadRes.data.id;
+            // Save to Cloudinary
+            try {
+                let cloudinaryUrl = null;
+                if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
+                    cloudinary.config({ cloud_name: settings.cloudinaryCloudName, api_key: settings.cloudinaryApiKey, api_secret: settings.cloudinaryApiSecret });
+                    const cResult = await cloudinary.uploader.upload(headerFile.path, { folder: 'chatlink_media', public_id: `lib_${headerMediaId}`, overwrite: true });
+                    cloudinaryUrl = cResult.secure_url;
+                }
+                const library = getMediaLibrary();
+                library.unshift({ id: headerMediaId, name: headerFile.originalname, filename: headerFile.originalname, url: cloudinaryUrl, uploadedAt: Date.now() });
+                saveJson(MEDIA_LIBRARY_FILE, library);
+            } catch(libErr) { console.error('Failed to save media:', libErr.message); }
+            try { fs.unlinkSync(headerFile.path); } catch(e) {}
+        } catch (err) {
+            try { fs.unlinkSync(headerFile.path); } catch(e) {}
+            return res.status(500).json({ error: 'Failed to upload header media' });
+        }
+    } else if (headerUrl && requiresHeader) {
+        try {
+            const imageResponse = await axios.get(headerUrl, { responseType: 'arraybuffer', timeout: 30000 });
+            const ext = headerUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)?.[0] || '.jpg';
+            const tempFile = path.join(__dirname, 'uploads', `sched_header_${Date.now()}${ext}`);
+            fs.writeFileSync(tempFile, Buffer.from(imageResponse.data));
+            const formData = new FormData();
+            formData.append('messaging_product', 'whatsapp');
+            formData.append('file', fs.createReadStream(tempFile), { filename: `header${ext}`, contentType: imageResponse.headers['content-type'] || 'image/jpeg' });
+            const uploadRes = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/media`, formData, {
+                headers: { ...formData.getHeaders(), Authorization: `Bearer ${settings.accessToken}` }
+            });
+            headerMediaId = uploadRes.data.id;
+            try { fs.unlinkSync(tempFile); } catch(e) {}
+        } catch (err) {
+            return res.status(500).json({ error: 'Failed to upload header image' });
+        }
+    }
+
+    // Parse contacts
+    const parseAndSchedule = (rawList) => {
+        const filteredList = buildFilteredContacts(rawList, skipExisting, skipInCRM);
+        try { fs.unlinkSync(contactsFile.path); } catch(e) {}
+
+        const allTags = new Set();
+        filteredList.forEach(c => {
+            if (c.tags) c.tags.forEach(t => allTags.add(t));
+            else {
+                const contacts = getContacts();
+                const ct = contacts[c.parsedPhone];
+                if (ct && ct.tags) ct.tags.forEach(t => allTags.add(t));
+            }
+        });
+
+        const id = 'sched_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex');
+        const scheduled = {
+            id,
+            campaignName: campaignName || `Scheduled ${scheduleDate.toLocaleDateString()}`,
+            templateName, templateBody, languageCode: languageCode || 'en_US',
+            mapping: mappingObj, dailyLimit, skipExisting, skipInCRM,
+            contacts: filteredList,
+            headerType, headerMediaId, headerUrl,
+            tags: Array.from(allTags),
+            scheduleTime: scheduleDate.getTime(),
+            status: 'scheduled',
+            createdAt: Date.now()
+        };
+
+        const list = getScheduledCampaigns();
+        list.push(scheduled);
+        saveScheduledCampaigns(list);
+
+        console.log(`[Schedule] Campaign "${scheduled.campaignName}" scheduled for ${scheduleDate.toLocaleString()} with ${filteredList.length} contacts`);
+        res.json({ success: true, scheduled: true, id: scheduled.id, campaignName: scheduled.campaignName, total: filteredList.length, scheduleTime: scheduleDate.toISOString() });
+    };
+
+    if (contactsFile.originalname.endsWith('.csv')) {
+        const rawList = [];
+        fs.createReadStream(contactsFile.path).pipe(csv())
+            .on('data', d => rawList.push(d))
+            .on('end', () => parseAndSchedule(rawList));
+    } else {
+        const workbook = xlsx.readFile(contactsFile.path);
+        const rawList = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        parseAndSchedule(rawList);
+    }
+});
+
+// Schedule API: List scheduled campaigns
+app.get('/api/schedule/list', (req, res) => {
+    const list = getScheduledCampaigns();
+    const summary = list.map(s => ({
+        id: s.id,
+        campaignName: s.campaignName,
+        total: s.contacts.length,
+        scheduleTime: s.scheduleTime,
+        status: s.status,
+        createdAt: s.createdAt
+    }));
+    res.json(summary);
+});
+
+// Schedule API: Cancel a scheduled campaign
+app.delete('/api/schedule/:id', (req, res) => {
+    let list = getScheduledCampaigns();
+    const before = list.length;
+    list = list.filter(s => s.id !== req.params.id);
+    if (list.length === before) return res.status(404).json({ error: 'Not found' });
+    saveScheduledCampaigns(list);
+    console.log(`[Schedule] Cancelled campaign ${req.params.id}`);
+    res.json({ success: true });
+});
+
+// Scheduler cron: check every 30 seconds
+setInterval(async () => {
+    const list = getScheduledCampaigns();
+    const now = Date.now();
+    let changed = false;
+
+    for (const sched of list) {
+        if (sched.status === 'scheduled' && sched.scheduleTime <= now) {
+            console.log(`[Schedule] Triggering campaign "${sched.campaignName}" (${sched.contacts.length} contacts)`);
+            sched.status = 'running';
+            changed = true;
+
+            if (isCampaignRunning) {
+                console.log(`[Schedule] Campaign already running, skipping "${sched.campaignName}"`);
+                sched.status = 'failed';
+                continue;
+            }
+
+            const settings = getSettings();
+            if (!settings.accessToken || !settings.phoneNumberId) {
+                console.log(`[Schedule] No API credentials, skipping`);
+                sched.status = 'failed';
+                continue;
+            }
+
+            try {
+                // Convert headerUrl to media_id if needed
+                if (!sched.headerMediaId && sched.headerUrl && sched.headerType && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(sched.headerType)) {
+                    try {
+                        const imageResponse = await axios.get(sched.headerUrl, { responseType: 'arraybuffer', timeout: 30000 });
+                        const ext = sched.headerUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)?.[0] || '.jpg';
+                        const tempFile = path.join(__dirname, 'uploads', `sched_convert_${Date.now()}${ext}`);
+                        fs.writeFileSync(tempFile, Buffer.from(imageResponse.data));
+                        const formData = new FormData();
+                        formData.append('messaging_product', 'whatsapp');
+                        formData.append('file', fs.createReadStream(tempFile), { filename: `header${ext}`, contentType: imageResponse.headers['content-type'] || 'image/jpeg' });
+                        const uploadRes = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/media`, formData, {
+                            headers: { ...formData.getHeaders(), Authorization: `Bearer ${settings.accessToken}` }
+                        });
+                        sched.headerMediaId = uploadRes.data.id;
+                        try { fs.unlinkSync(tempFile); } catch(e) {}
+                    } catch(err) {
+                        console.error(`[Schedule] Failed to convert headerUrl:`, err.message);
+                    }
+                }
+
+                if (sched.dailyLimit > 0 && sched.contacts.length > sched.dailyLimit) {
+                    const queue = {
+                        campaignName: sched.campaignName, templateName: sched.templateName,
+                        templateBody: sched.templateBody, languageCode: sched.languageCode,
+                        mapping: sched.mapping, dailyLimit: sched.dailyLimit,
+                        contacts: sched.contacts, sentIndex: 0, status: 'running',
+                        createdAt: Date.now(), lastRunAt: null,
+                        headerType: sched.headerType, headerMediaId: sched.headerMediaId,
+                        headerUrl: sched.headerUrl, tags: sched.tags
+                    };
+                    saveJson(QUEUE_FILE, queue);
+                    runQueueBatch(queue, sched.dailyLimit, settings);
+                } else {
+                    startDirectCampaign(sched.contacts, sched.templateName, sched.templateBody, sched.languageCode, sched.mapping, settings, sched.headerType, sched.headerMediaId, sched.headerUrl, sched.campaignName, sched.tags);
+                }
+                sched.status = 'sent';
+            } catch(err) {
+                console.error(`[Schedule] Failed to launch campaign:`, err.message);
+                sched.status = 'failed';
+            }
+        }
+    }
+
+    if (changed) saveScheduledCampaigns(list);
+}, 30000);
 
 async function runQueueBatch(queue, batchSize, settings) {
     isCampaignRunning = true;

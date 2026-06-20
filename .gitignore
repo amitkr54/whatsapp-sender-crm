@@ -13,4 +13,5 @@ notifications.json
 media_library.json
 campaign_queue.json
 authorized_machines.json
+scheduled_campaigns.json
 auth_tokens.json

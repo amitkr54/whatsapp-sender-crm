@@ -1822,6 +1822,167 @@ async function startCampaign() {
     }
 }
 
+async function scheduleCampaign() {
+    const scheduleTime = document.getElementById('schedule-time').value;
+    if (!scheduleTime) return alert('Please pick a date and time to schedule.');
+
+    const scheduleDate = new Date(scheduleTime);
+    if (scheduleDate <= new Date()) return alert('Schedule time must be in the future.');
+
+    const templateName = document.getElementById('template-name').value;
+    const templateLang = document.getElementById('template-lang').value;
+    const templateMapping = document.getElementById('template-mapping').value;
+    const campaignName = document.getElementById('campaign-name')?.value || '';
+    const dailyLimit = parseInt(document.getElementById('campaign-daily-limit')?.value) || 0;
+    const skipExisting = document.getElementById('campaign-skip-existing')?.checked || false;
+    const skipInCRM = document.getElementById('campaign-skip-in-crm')?.checked || false;
+
+    if (!templateName) return alert('Please select a template first.');
+
+    let mappingObj = {};
+    try { mappingObj = templateMapping ? JSON.parse(templateMapping) : {}; } catch(e) {}
+
+    let formData = new FormData();
+
+    if (currentAudienceTab === 'crm') {
+        const res = await fetch('/api/contacts');
+        const contacts = await res.json();
+        const tag = document.getElementById('crm-tag-filter').value;
+        let list = Object.entries(contacts).map(([phone, c]) => ({ ...c, phone }));
+        if (tag) list = list.filter(c => (c.tags || []).includes(tag));
+        if (list.length === 0) return alert('No CRM contacts match the selected filter.');
+        const csvRows = ['Phone,Name', ...list.map(c => `${c.phone},${(c.name || '').replace(/,/g, ' ')}`)].join('\n');
+        const blob = new Blob([csvRows], { type: 'text/csv' });
+        formData.append('file', blob, 'crm_contacts.csv');
+    } else {
+        const fileInput = document.getElementById('csv-file');
+        if (!fileInput.files[0]) return alert('Upload a Contact List (CSV/Excel).');
+        formData.append('file', fileInput.files[0]);
+    }
+
+    formData.append('templateName', templateName);
+
+    if (window.globalSyncedTemplates) {
+        const t = window.globalSyncedTemplates.find(x => x.name === templateName);
+        if (t) {
+            let fullText = [];
+            const headerComp = t.components?.find(c => c.type === 'HEADER');
+            if (headerComp && headerComp.format === 'TEXT') fullText.push(`*${headerComp.text}*`);
+            const bodyComp = t.components?.find(c => c.type === 'BODY');
+            if (bodyComp) fullText.push(bodyComp.text);
+            const footerComp = t.components?.find(c => c.type === 'FOOTER');
+            if (footerComp) fullText.push(`_${footerComp.text}_`);
+            if (fullText.length > 0) formData.append('templateBody', fullText.join('\n\n'));
+        }
+    }
+
+    formData.append('languageCode', templateLang);
+    formData.append('mapping', JSON.stringify(mappingObj));
+    formData.append('campaignName', campaignName || `Scheduled ${scheduleDate.toLocaleDateString()}`);
+    formData.append('skipExisting', skipExisting);
+    formData.append('skipInCRM', skipInCRM);
+    if (dailyLimit > 0) formData.append('dailyLimit', dailyLimit);
+    formData.append('scheduleTime', scheduleDate.toISOString());
+
+    let headerType = '';
+    if (window.globalSyncedTemplates) {
+        const t = window.globalSyncedTemplates.find(x => x.name === templateName);
+        const headerComp = t?.components?.find(c => c.type === 'HEADER');
+        if (headerComp) headerType = headerComp.format;
+    }
+
+    const requiresHeader = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType);
+    if (requiresHeader) {
+        const savedMediaId = document.getElementById('selected-media-id')?.value || '';
+        const headerFile = document.getElementById('campaign-header-file')?.files[0];
+        const headerUrl = document.getElementById('campaign-header-url')?.value.trim() || '';
+        if (savedMediaId) {
+            formData.append('savedMediaId', savedMediaId);
+        } else if (headerFile) {
+            formData.append('headerFile', headerFile);
+        } else if (headerUrl) {
+            formData.append('headerUrl', headerUrl);
+        } else {
+            alert(`This template requires a ${headerType.toLowerCase()} header.`);
+            return;
+        }
+        formData.append('headerType', headerType);
+    }
+
+    document.getElementById('schedule-btn').disabled = true;
+    try {
+        const res = await fetch('/api/schedule/create', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        showToast(`Campaign scheduled for ${scheduleDate.toLocaleString()} with ${data.total} contacts!`, 'success');
+        document.getElementById('schedule-time').value = '';
+        loadScheduledCampaigns();
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        document.getElementById('schedule-btn').disabled = false;
+    }
+}
+
+async function loadScheduledCampaigns() {
+    try {
+        const res = await fetch('/api/schedule/list');
+        const list = await res.json();
+        const container = document.getElementById('scheduled-list');
+        if (!container) return;
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color:var(--text-dim); font-size:13px; padding:16px 0;">No scheduled campaigns</div>';
+            return;
+        }
+
+        container.innerHTML = list.map(s => {
+            const dt = new Date(s.scheduleTime);
+            const timeStr = dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const now = new Date();
+            const diff = dt - now;
+            let countdown = '';
+            if (diff > 0) {
+                const hours = Math.floor(diff / 3600000);
+                const mins = Math.floor((diff % 3600000) / 60000);
+                countdown = hours > 0 ? `in ${hours}h ${mins}m` : `in ${mins}m`;
+            }
+            let statusColor, statusBg, statusLabel;
+            if (s.status === 'scheduled') { statusColor = '#fbbf24'; statusBg = 'rgba(251,191,36,0.12)'; statusLabel = `⏰ ${countdown}`; }
+            else if (s.status === 'sent') { statusColor = '#00a884'; statusBg = 'rgba(0,168,132,0.1)'; statusLabel = '✅ Sent'; }
+            else if (s.status === 'running') { statusColor = '#53bdeb'; statusBg = 'rgba(83,189,235,0.1)'; statusLabel = '🔄 Running'; }
+            else { statusColor = '#ef4444'; statusBg = 'rgba(239,68,68,0.1)'; statusLabel = '❌ Failed'; }
+
+            const canCancel = s.status === 'scheduled';
+
+            return `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; gap:12px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:180px;">
+                    <div style="font-size:14px; font-weight:600; color:var(--text-main);">${s.campaignName}</div>
+                    <div style="font-size:12px; color:var(--text-dim); margin-top:3px;">${s.total} contacts • ${timeStr}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="background:${statusBg}; color:${statusColor}; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap;">${statusLabel}</span>
+                    ${canCancel ? `<button onclick="cancelScheduled('${s.id}')" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:5px 12px; border-radius:8px; cursor:pointer; font-size:11px; font-weight:600;">Cancel</button>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        console.error('Failed to load scheduled campaigns', e);
+    }
+}
+
+async function cancelScheduled(id) {
+    if (!confirm('Cancel this scheduled campaign?')) return;
+    try {
+        await fetch(`/api/schedule/${id}`, { method: 'DELETE' });
+        showToast('Campaign cancelled', 'success');
+        loadScheduledCampaigns();
+    } catch(e) {
+        alert('Failed to cancel');
+    }
+}
+
 async function stopCampaign() {
     await fetch('/api/queue/stop', { method: 'POST' });
     showToast('Stop signal sent. Current batch will finish the current message then stop.', 'info');
@@ -2741,6 +2902,7 @@ window.onload = () => {
     loadNotifications();
     loadQueueStatus();
     loadCampaignTemplates();
+    loadScheduledCampaigns();
     // Ensure audience tab starts on CSV
     switchAudienceTab('csv');
 };
