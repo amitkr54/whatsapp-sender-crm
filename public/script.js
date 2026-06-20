@@ -2294,7 +2294,7 @@ function renderCampaignComparison(campaigns) {
             : '<span style="color:var(--text-dim); font-size:11px;">—</span>';
         const replyRateColor = c.replyRate >= 15 ? '#00a884' : c.replyRate >= 8 ? '#53bdeb' : c.replyRate > 0 ? '#f59e0b' : 'var(--text-dim)';
         return `
-        <tr>
+        <tr style="cursor:pointer;" onclick="openCampaignDrilldown('${c.name.replace(/'/g, "\\'")}')">
             <td style="font-weight:500;">${c.name}</td>
             <td>${tagsHtml}</td>
             <td style="text-align:center;">${c.uniqueContacts}</td>
@@ -2302,7 +2302,7 @@ function renderCampaignComparison(campaigns) {
             <td style="text-align:center; color:var(--accent);">${c.delivered}</td>
             <td style="text-align:center; color:#53bdeb;">${c.read}</td>
             <td style="text-align:center; color:#a78bfa;">${c.replied}</td>
-            <td style="text-align:center;"><span style="background:${replyRateColor}22; color:${replyRateColor}; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">${c.replyRate}%</span></td>
+            <td style="text-align:center;"><span style="background:${replyRateColor}22; color:${replyRateColor}; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; cursor:pointer;" onclick="event.stopPropagation(); openTagDrilldown('${c.tags[0] || c.name}')">${c.replyRate}%</span></td>
         </tr>`;
     }).join('');
 }
@@ -2320,7 +2320,7 @@ function renderTagCharts(tags) {
         return 'rgba(245,158,11,0.8)';
     });
 
-    // Reply Rate by Tag chart
+    // Reply Rate by Tag chart (clickable)
     if (chartTagConversion) chartTagConversion.destroy();
     const ctx1 = document.getElementById('chart-tag-conversion');
     if (ctx1) {
@@ -2340,10 +2340,17 @@ function renderTagCharts(tags) {
             options: {
                 responsive: true, maintainAspectRatio: false,
                 indexAxis: 'y',
-                plugins: { legend: { display: false } },
+                onClick: (evt, elements) => {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const tag = labels[idx];
+                        openTagDrilldown(tag);
+                    }
+                },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.raw}% — Click to view contacts` } } },
                 scales: {
                     x: { ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' }, max: 100 },
-                    y: { ticks: { color: '#e9edef', font: { size: 12 } }, grid: { display: false } }
+                    y: { ticks: { color: '#e9edef', font: { size: 12, cursor: 'pointer' } }, grid: { display: false } }
                 }
             }
         });
@@ -2373,6 +2380,99 @@ function renderTagCharts(tags) {
             }
         });
     }
+}
+
+// --- Drill-Down Functions ---
+async function openTagDrilldown(tag) {
+    document.getElementById('drilldown-title').textContent = `Tag: ${tag}`;
+    document.getElementById('drilldown-subtitle').textContent = 'Loading contacts...';
+    document.getElementById('drilldown-stats').innerHTML = '';
+    document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim);">Loading...</td></tr>';
+    openModal('drilldown-modal');
+
+    try {
+        const res = await fetch(`/api/reports/tags/${encodeURIComponent(tag)}/contacts`);
+        const data = await res.json();
+
+        document.getElementById('drilldown-subtitle').textContent = `All contacts tagged "${tag}"`;
+
+        // Stats badges
+        document.getElementById('drilldown-stats').innerHTML = `
+            <div style="background:rgba(0,168,132,0.1); border:1px solid rgba(0,168,132,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
+                <span style="color:var(--text-dim);">Total:</span> <strong style="color:var(--text-main);">${data.total}</strong>
+            </div>
+            <div style="background:rgba(83,189,235,0.1); border:1px solid rgba(83,189,235,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
+                <span style="color:var(--text-dim);">Messaged:</span> <strong style="color:#53bdeb;">${data.messaged}</strong>
+            </div>
+            <div style="background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
+                <span style="color:var(--text-dim);">Replied:</span> <strong style="color:#a78bfa;">${data.replied}</strong>
+            </div>
+        `;
+
+        renderDrilldownTable(data.contacts);
+    } catch(e) {
+        document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">Failed to load data</td></tr>';
+    }
+}
+
+async function openCampaignDrilldown(campaignName) {
+    document.getElementById('drilldown-title').textContent = `Campaign: ${campaignName}`;
+    document.getElementById('drilldown-subtitle').textContent = 'Loading contacts...';
+    document.getElementById('drilldown-stats').innerHTML = '';
+    document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim);">Loading...</td></tr>';
+    openModal('drilldown-modal');
+
+    try {
+        const res = await fetch(`/api/reports/campaigns/${encodeURIComponent(campaignName)}/contacts`);
+        const data = await res.json();
+
+        document.getElementById('drilldown-subtitle').textContent = `Contacts messaged by "${campaignName}"`;
+
+        document.getElementById('drilldown-stats').innerHTML = `
+            <div style="background:rgba(0,168,132,0.1); border:1px solid rgba(0,168,132,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
+                <span style="color:var(--text-dim);">Total:</span> <strong style="color:var(--text-main);">${data.total}</strong>
+            </div>
+            <div style="background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
+                <span style="color:var(--text-dim);">Replied:</span> <strong style="color:#a78bfa;">${data.replied}</strong>
+            </div>
+        `;
+
+        renderDrilldownTable(data.contacts);
+    } catch(e) {
+        document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">Failed to load data</td></tr>';
+    }
+}
+
+function renderDrilldownTable(contacts) {
+    const tbody = document.getElementById('drilldown-body');
+    if (!contacts || contacts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim);">No contacts found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = contacts.map(c => {
+        const tagsHtml = (c.tags || []).map(t => `<span style="background:rgba(0,168,132,0.1); color:var(--accent); padding:1px 5px; border-radius:3px; font-size:10px; margin-right:2px;">${t}</span>`).join('');
+        let statusBadge;
+        if (c.hasReplied) {
+            statusBadge = `<span style="background:rgba(167,139,250,0.15); color:#a78bfa; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">Replied (${c.replied})</span>`;
+        } else if (c.lastStatus === 'read') {
+            statusBadge = `<span style="background:rgba(83,189,235,0.15); color:#53bdeb; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">Read</span>`;
+        } else if (c.lastStatus === 'delivered') {
+            statusBadge = `<span style="background:rgba(0,168,132,0.15); color:var(--accent); padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">Delivered</span>`;
+        } else if (c.lastStatus === 'sent') {
+            statusBadge = `<span style="background:rgba(148,163,184,0.15); color:#94a3b8; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">Sent</span>`;
+        } else {
+            statusBadge = `<span style="color:var(--text-dim); font-size:11px;">Not messaged</span>`;
+        }
+        return `
+        <tr style="cursor: pointer;" onclick="window.open('/?chat=${c.phone}', '_blank')">
+            <td style="font-weight:500;">${c.name}</td>
+            <td style="color:var(--text-dim); font-size:12px;">${c.phone}</td>
+            <td>${tagsHtml || '<span style="color:var(--text-dim);">—</span>'}</td>
+            <td style="text-align:center; font-weight:600;">${c.sent || 0}</td>
+            <td style="text-align:center; color:#53bdeb;">${c.read || 0}</td>
+            <td style="text-align:center;">${statusBadge}</td>
+        </tr>`;
+    }).join('');
 }
 
 // Init

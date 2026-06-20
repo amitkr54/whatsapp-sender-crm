@@ -795,6 +795,97 @@ app.get('/api/reports/campaigns', (req, res) => {
     res.json({ campaigns: result });
 });
 
+// --- Tag Drill-Down: get contacts by tag with message status ---
+app.get('/api/reports/tags/:tag/contacts', (req, res) => {
+    const tag = decodeURIComponent(req.params.tag);
+    const chats = getChats();
+    const contacts = getContacts();
+    const contactList = [];
+
+    Object.entries(contacts).forEach(([phone, contact]) => {
+        if (!contact.tags || !contact.tags.includes(tag)) return;
+        const history = chats[phone] || [];
+        let sent = 0, delivered = 0, read = 0, replied = 0, lastStatus = 'none', lastTime = null;
+        history.forEach(msg => {
+            if (msg.from === 'me') {
+                sent++;
+                if (msg.status === 'delivered' || msg.status === 'read') delivered++;
+                if (msg.status === 'read') read++;
+                lastStatus = msg.status || 'sent';
+                lastTime = msg.timestamp;
+            } else {
+                replied++;
+            }
+        });
+        contactList.push({
+            phone,
+            name: contact.name || phone,
+            tags: contact.tags || [],
+            sent, delivered, read, replied,
+            hasReplied: replied > 0,
+            lastStatus: sent > 0 ? lastStatus : 'not_sent',
+            lastTime
+        });
+    });
+
+    // Sort: replied first, then by last time desc
+    contactList.sort((a, b) => {
+        if (a.hasReplied && !b.hasReplied) return -1;
+        if (!a.hasReplied && b.hasReplied) return 1;
+        return (b.lastTime || 0) - (a.lastTime || 0);
+    });
+
+    const total = contactList.length;
+    const messaged = contactList.filter(c => c.sent > 0).length;
+    const repliedList = contactList.filter(c => c.hasReplied);
+
+    res.json({ tag, total, messaged, replied: repliedList.length, contacts: contactList });
+});
+
+// --- Campaign Drill-Down: get contacts by campaign name with message status ---
+app.get('/api/reports/campaigns/:name/contacts', (req, res) => {
+    const campaignName = decodeURIComponent(req.params.name);
+    const chats = getChats();
+    const contacts = getContacts();
+    const contactMap = {};
+
+    Object.entries(chats).forEach(([phone, history]) => {
+        history.forEach(msg => {
+            if (msg.from === 'me' && msg.campaignName === campaignName) {
+                if (!contactMap[phone]) {
+                    const ct = contacts[phone] || {};
+                    contactMap[phone] = {
+                        phone, name: ct.name || phone, tags: ct.tags || [],
+                        sent: 0, delivered: 0, read: 0, replied: 0, lastStatus: 'sent', lastTime: null
+                    };
+                }
+                contactMap[phone].sent++;
+                if (msg.status === 'delivered' || msg.status === 'read') contactMap[phone].delivered++;
+                if (msg.status === 'read') contactMap[phone].read++;
+                contactMap[phone].lastStatus = msg.status || 'sent';
+                contactMap[phone].lastTime = msg.timestamp;
+            }
+        });
+        // Check for replies from this contact
+        let hasCampaignMsg = false;
+        history.forEach(msg => {
+            if (msg.from === 'me' && msg.campaignName === campaignName) hasCampaignMsg = true;
+            if (msg.from !== 'me' && hasCampaignMsg && contactMap[phone]) {
+                contactMap[phone].replied++;
+            }
+        });
+    });
+
+    const contactList = Object.values(contactMap).map(c => ({ ...c, hasReplied: c.replied > 0 }));
+    contactList.sort((a, b) => {
+        if (a.hasReplied && !b.hasReplied) return -1;
+        if (!a.hasReplied && b.hasReplied) return 1;
+        return (b.lastTime || 0) - (a.lastTime || 0);
+    });
+
+    res.json({ campaignName, total: contactList.length, replied: contactList.filter(c => c.hasReplied).length, contacts: contactList });
+});
+
 
 // --- Webhook Configuration ---
 app.get('/webhook', (req, res) => {

@@ -1057,6 +1057,35 @@
         </div>
     </div>
 
+    <!-- Drill-Down Modal -->
+    <div id="drilldown-modal" class="modal">
+        <div class="modal-content card" style="width: 700px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-shrink: 0;">
+                <div>
+                    <h3 id="drilldown-title" style="margin: 0; font-size: 17px; font-weight: 600;">Tag Details</h3>
+                    <p id="drilldown-subtitle" style="margin: 4px 0 0 0; font-size: 13px; color: var(--text-dim);"></p>
+                </div>
+                <i data-lucide="x" style="cursor: pointer; color: var(--text-dim); width: 20px;" onclick="closeModal('drilldown-modal')"></i>
+            </div>
+            <div id="drilldown-stats" style="display: flex; gap: 12px; margin-bottom: 16px; flex-shrink: 0;"></div>
+            <div style="overflow-y: auto; flex: 1;">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Contact</th>
+                            <th>Phone</th>
+                            <th>Tags</th>
+                            <th style="text-align:center;">Sent</th>
+                            <th style="text-align:center;">Read</th>
+                            <th style="text-align:center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="drilldown-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script>lucide.createIcons();</script>
 </body>
