@@ -49,6 +49,7 @@ window.fetch = function(url, opts = {}) {
 window.addEventListener('load', () => {
     const searchInput = document.getElementById('chat-search-input');
     if (searchInput) searchInput.value = '';
+    filterReportByStatus('all');
 });
 
 // Button ripple tracking for gradient highlight effect
@@ -2238,12 +2239,15 @@ function setRateBar(id, rate) {
     if (label) label.innerText = rate + '%';
 }
 
+let reportLogFilter = 'all';
+let selectedReportPhones = new Set();
+
 function renderReportLog(contactLog) {
     const tbody = document.getElementById('report-log-body');
     if (!tbody) return;
 
     if (!contactLog || contactLog.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:30px;">No messages sent yet. Launch a campaign to see results here.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:30px;">No messages sent yet. Launch a campaign to see results here.</td></tr>';
         return;
     }
 
@@ -2260,8 +2264,10 @@ function renderReportLog(contactLog) {
         const repliedBadge = c.replied
             ? `<span style="background:rgba(167,139,250,0.15); color:#a78bfa; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">✓ ${c.replyCount}</span>`
             : `<span style="color:var(--text-dim); font-size:12px;">—</span>`;
+        const isChecked = selectedReportPhones.has(c.phone) ? 'checked' : '';
         return `
         <tr>
+            <td style="text-align:center;"><input type="checkbox" class="rpt-checkbox" data-phone="${c.phone}" ${isChecked} onchange="toggleReportSelect('${c.phone}', this.checked)" style="cursor:pointer;"></td>
             <td style="font-weight:500;">${c.name}</td>
             <td style="color:var(--text-dim); font-size:12px;">${c.phone}</td>
             <td style="text-align:center; font-weight:600;">${c.sent}</td>
@@ -2274,13 +2280,93 @@ function renderReportLog(contactLog) {
     }).join('');
 }
 
+function filterReportByStatus(status) {
+    reportLogFilter = status;
+    // Update button styles
+    document.querySelectorAll('#report-status-filters button').forEach(btn => {
+        btn.style.border = '1px solid rgba(255,255,255,0.1)';
+        btn.style.background = 'rgba(255,255,255,0.03)';
+    });
+    const activeBtn = document.getElementById(`rpt-filter-${status}`);
+    if (activeBtn) {
+        activeBtn.style.border = '1px solid ' + (activeBtn.style.color || 'var(--accent)');
+        activeBtn.style.background = (activeBtn.style.color || 'var(--accent)') + '22';
+    }
+    filterReportLog();
+}
+
 function filterReportLog() {
     if (!globalReportData) return;
     const q = document.getElementById('report-search').value.toLowerCase().trim();
-    const filtered = q
-        ? globalReportData.contactLog.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
-        : globalReportData.contactLog;
+    let filtered = globalReportData.contactLog;
+
+    if (q) {
+        filtered = filtered.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
+    }
+    if (reportLogFilter !== 'all') {
+        filtered = filtered.filter(c => c.lastStatus === reportLogFilter);
+    }
     renderReportLog(filtered);
+    updateSelectedCount();
+}
+
+function toggleReportSelect(phone, checked) {
+    if (checked) {
+        selectedReportPhones.add(phone);
+    } else {
+        selectedReportPhones.delete(phone);
+    }
+    updateSelectedCount();
+}
+
+function toggleSelectAllReport(checkbox) {
+    const checkboxes = document.querySelectorAll('.rpt-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+        const phone = cb.dataset.phone;
+        if (checkbox.checked) {
+            selectedReportPhones.add(phone);
+        } else {
+            selectedReportPhones.delete(phone);
+        }
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const btn = document.getElementById('delete-selected-btn');
+    const countEl = document.getElementById('selected-count');
+    if (btn && countEl) {
+        countEl.textContent = selectedReportPhones.size;
+        btn.style.display = selectedReportPhones.size > 0 ? 'inline-flex' : 'none';
+    }
+}
+
+async function deleteSelectedContacts() {
+    if (selectedReportPhones.size === 0) return;
+    const count = selectedReportPhones.size;
+    if (!confirm(`Delete ${count} contact(s) and all their messages? This cannot be undone.`)) return;
+
+    try {
+        const res = await fetch('/api/contacts/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phones: Array.from(selectedReportPhones) })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Deleted ${count} contact(s)`, 'success');
+            selectedReportPhones.clear();
+            updateSelectedCount();
+            loadReports();
+            loadContacts();
+            loadInboxList();
+        } else {
+            showToast('Delete failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch(e) {
+        showToast('Delete failed', 'error');
+    }
 }
 
 function exportReportCSV() {

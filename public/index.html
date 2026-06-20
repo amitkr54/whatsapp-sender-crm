@@ -755,17 +755,30 @@
 
                 <!-- Row 4: Per-Contact Message Log Table -->
                 <div class="card" style="padding: 0; overflow: hidden;">
-                    <div style="padding: 18px 24px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border);">
+                    <div style="padding: 18px 24px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px;">
                         <h3 style="margin:0; font-size:17px;">Per-Contact Message Log</h3>
-                        <div style="position:relative;">
-                            <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
-                            <input type="text" id="report-search" placeholder="Search contact..." oninput="filterReportLog()" style="padding:10px 12px 10px 36px; background:rgba(0,0,0,0.2); border:1px solid var(--border); color:white; border-radius:8px; font-size:14px; width:240px;">
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                            <div style="display:flex; gap:6px;" id="report-status-filters">
+                                <button onclick="filterReportByStatus('all')" id="rpt-filter-all" style="padding:5px 12px; border-radius:14px; border:1px solid var(--accent); background:rgba(0,168,132,0.15); color:var(--accent); font-size:11px; font-weight:600; cursor:pointer;">All</button>
+                                <button onclick="filterReportByStatus('failed')" id="rpt-filter-failed" style="padding:5px 12px; border-radius:14px; border:1px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.08); color:#ef4444; font-size:11px; font-weight:600; cursor:pointer;">Failed</button>
+                                <button onclick="filterReportByStatus('read')" id="rpt-filter-read" style="padding:5px 12px; border-radius:14px; border:1px solid rgba(83,189,235,0.3); background:rgba(83,189,235,0.08); color:#53bdeb; font-size:11px; font-weight:600; cursor:pointer;">Read</button>
+                                <button onclick="filterReportByStatus('delivered')" id="rpt-filter-delivered" style="padding:5px 12px; border-radius:14px; border:1px solid rgba(0,168,132,0.3); background:rgba(0,168,132,0.08); color:var(--accent); font-size:11px; font-weight:600; cursor:pointer;">Delivered</button>
+                                <button onclick="filterReportByStatus('sent')" id="rpt-filter-sent" style="padding:5px 12px; border-radius:14px; border:1px solid rgba(148,163,184,0.3); background:rgba(148,163,184,0.08); color:#94a3b8; font-size:11px; font-weight:600; cursor:pointer;">Sent</button>
+                            </div>
+                            <button id="delete-selected-btn" class="btn btn-sm" onclick="deleteSelectedContacts()" style="display:none; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; padding:5px 12px; border-radius:14px; font-size:11px; font-weight:600; cursor:pointer;">
+                                <i data-lucide="trash-2" style="width:12px;"></i> Delete Selected (<span id="selected-count">0</span>)
+                            </button>
+                            <div style="position:relative;">
+                                <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; color:var(--text-dim);"></i>
+                                <input type="text" id="report-search" placeholder="Search contact..." oninput="filterReportLog()" style="padding:10px 12px 10px 36px; background:rgba(0,0,0,0.2); border:1px solid var(--border); color:white; border-radius:8px; font-size:14px; width:200px;">
+                            </div>
                         </div>
                     </div>
                     <div style="overflow-x:auto; max-height: 400px; overflow-y:auto;">
                         <table class="report-table">
                             <thead style="position:sticky; top:0; z-index:1; background:var(--sidebar-bg);">
                                 <tr>
+                                    <th style="width:40px; text-align:center;"><input type="checkbox" id="select-all-rpt" onchange="toggleSelectAllReport(this)" style="cursor:pointer;"></th>
                                     <th>Contact</th>
                                     <th>Phone</th>
                                     <th style="text-align:center;">Sent</th>
@@ -777,7 +790,7 @@
                                 </tr>
                             </thead>
                             <tbody id="report-log-body">
-                                <tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:30px;">Loading...</td></tr>
+                                <tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:30px;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>

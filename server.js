@@ -487,6 +487,44 @@ app.post('/api/contacts', (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/contacts/bulk-delete', (req, res) => {
+    try {
+        const { phones } = req.body;
+        if (!phones || !Array.isArray(phones) || phones.length === 0) {
+            return res.status(400).json({ success: false, error: 'No phones provided' });
+        }
+
+        const contacts = getContacts();
+        const chats = getJson(CHATS_FILE, {});
+        let deleted = 0;
+
+        phones.forEach(phone => {
+            if (contacts[phone]) {
+                delete contacts[phone];
+                deleted++;
+            }
+            if (chats[phone]) {
+                delete chats[phone];
+            }
+        });
+
+        saveJson(CONTACTS_FILE, contacts);
+        saveJson(CHATS_FILE, chats);
+
+        // Cloudinary backup
+        backupToCloudinary(CONTACTS_FILE).catch(() => {});
+        backupToCloudinary(CHATS_FILE).catch(() => {});
+
+        io.emit('contact_updated', {});
+
+        console.log(`Bulk deleted ${deleted} contacts`);
+        res.json({ success: true, deleted });
+    } catch (e) {
+        console.error('Bulk delete error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // Import Contacts (CSV/Excel) - matches columns and auto-saves additional fields as Custom Attributes
 app.post('/api/contacts/import', upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
