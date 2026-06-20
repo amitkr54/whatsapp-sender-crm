@@ -2053,12 +2053,20 @@ socket.on('media_ready', (data) => {
 let chartTimeline = null;
 let chartFunnel = null;
 let chartHourly = null;
+let chartTagConversion = null;
+let chartTagVolume = null;
 let globalReportData = null;
 
 async function loadReports() {
     try {
-        const res = await fetch('/api/reports/insights');
+        const [res, tagRes, campRes] = await Promise.all([
+            fetch('/api/reports/insights'),
+            fetch('/api/reports/tags'),
+            fetch('/api/reports/campaigns')
+        ]);
         const stats = await res.json();
+        const tagData = await tagRes.json();
+        const campData = await campRes.json();
         globalReportData = stats;
 
         // KPI Cards
@@ -2192,6 +2200,12 @@ async function loadReports() {
         // Per-Contact Log Table
         renderReportLog(stats.contactLog);
 
+        // Campaign Comparison Table
+        renderCampaignComparison(campData.campaigns);
+
+        // Tag Conversion Charts
+        renderTagCharts(tagData.tags);
+
     } catch(e) {
         console.error('Failed to load reports', e);
         showToast('Failed to load report data', 'error');
@@ -2265,6 +2279,100 @@ function exportReportCSV() {
     a.download = `report_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     showToast('Report exported!', 'success');
+}
+
+function renderCampaignComparison(campaigns) {
+    const tbody = document.getElementById('campaign-comparison-body');
+    if (!tbody) return;
+    if (!campaigns || campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:20px;">No campaign data yet. Launch a campaign with tags to see comparison.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = campaigns.map(c => {
+        const tagsHtml = c.tags.length > 0
+            ? c.tags.map(t => `<span style="background:rgba(0,168,132,0.1); color:var(--accent); padding:2px 6px; border-radius:4px; font-size:11px; margin-right:3px;">${t}</span>`).join('')
+            : '<span style="color:var(--text-dim); font-size:11px;">—</span>';
+        const replyRateColor = c.replyRate >= 15 ? '#00a884' : c.replyRate >= 8 ? '#53bdeb' : c.replyRate > 0 ? '#f59e0b' : 'var(--text-dim)';
+        return `
+        <tr>
+            <td style="font-weight:500;">${c.name}</td>
+            <td>${tagsHtml}</td>
+            <td style="text-align:center;">${c.uniqueContacts}</td>
+            <td style="text-align:center; font-weight:600;">${c.sent}</td>
+            <td style="text-align:center; color:var(--accent);">${c.delivered}</td>
+            <td style="text-align:center; color:#53bdeb;">${c.read}</td>
+            <td style="text-align:center; color:#a78bfa;">${c.replied}</td>
+            <td style="text-align:center;"><span style="background:${replyRateColor}22; color:${replyRateColor}; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">${c.replyRate}%</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderTagCharts(tags) {
+    if (!tags || tags.length === 0) return;
+
+    const labels = tags.map(t => t.tag);
+    const replyRates = tags.map(t => t.replyRate);
+    const sentCounts = tags.map(t => t.sent);
+
+    const barColors = replyRates.map(r => {
+        if (r >= 15) return 'rgba(0,168,132,0.8)';
+        if (r >= 8) return 'rgba(83,189,235,0.8)';
+        return 'rgba(245,158,11,0.8)';
+    });
+
+    // Reply Rate by Tag chart
+    if (chartTagConversion) chartTagConversion.destroy();
+    const ctx1 = document.getElementById('chart-tag-conversion');
+    if (ctx1) {
+        chartTagConversion = new Chart(ctx1.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Reply Rate %',
+                    data: replyRates,
+                    backgroundColor: barColors,
+                    borderRadius: 6,
+                    borderWidth: 0,
+                    barPercentage: 0.6
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', font: { size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' }, max: 100 },
+                    y: { ticks: { color: '#e9edef', font: { size: 12 } }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // Messages Sent by Tag chart
+    if (chartTagVolume) chartTagVolume.destroy();
+    const ctx2 = document.getElementById('chart-tag-volume');
+    if (ctx2) {
+        const volumeColors = ['#00a884', '#53bdeb', '#a78bfa', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899'];
+        chartTagVolume = new Chart(ctx2.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: sentCounts,
+                    backgroundColor: labels.map((_, i) => volumeColors[i % volumeColors.length] + 'cc'),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                cutout: '55%',
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#e9edef', font: { size: 11 }, padding: 12, usePointStyle: true, pointStyleWidth: 8 } }
+                }
+            }
+        });
+    }
 }
 
 // Init

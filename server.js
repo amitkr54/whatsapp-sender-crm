@@ -698,6 +698,102 @@ app.get('/api/reports/insights', (req, res) => {
     res.json(stats);
 });
 
+// --- Tag-Based Analytics ---
+app.get('/api/reports/tags', (req, res) => {
+    const chats = getChats();
+    const contacts = getContacts();
+    const tagStats = {};
+
+    Object.entries(chats).forEach(([phone, history]) => {
+        const contact = contacts[phone];
+        const contactTags = contact?.tags || [];
+        if (contactTags.length === 0) return;
+
+        let sentCount = 0, deliveredCount = 0, readCount = 0, replyCount = 0;
+        history.forEach(msg => {
+            if (msg.from === 'me') {
+                sentCount++;
+                if (msg.status === 'delivered' || msg.status === 'read') deliveredCount++;
+                if (msg.status === 'read') readCount++;
+            } else {
+                replyCount++;
+            }
+        });
+        if (sentCount === 0) return;
+
+        contactTags.forEach(tag => {
+            if (!tagStats[tag]) tagStats[tag] = { tag, sent: 0, delivered: 0, read: 0, replied: 0, contacts: 0 };
+            tagStats[tag].sent += sentCount;
+            tagStats[tag].delivered += deliveredCount;
+            tagStats[tag].read += readCount;
+            tagStats[tag].replied += replyCount > 0 ? 1 : 0;
+            tagStats[tag].contacts++;
+        });
+    });
+
+    // Calculate rates
+    Object.values(tagStats).forEach(s => {
+        s.deliveryRate = s.sent > 0 ? Math.round((s.delivered / s.sent) * 100) : 0;
+        s.readRate = s.sent > 0 ? Math.round((s.read / s.sent) * 100) : 0;
+        s.replyRate = s.contacts > 0 ? Math.round((s.replied / s.contacts) * 100) : 0;
+    });
+
+    res.json({ tags: Object.values(tagStats).sort((a, b) => b.replyRate - a.replyRate) });
+});
+
+// --- Campaign Comparison ---
+app.get('/api/reports/campaigns', (req, res) => {
+    const chats = getChats();
+    const campaignStats = {};
+
+    Object.entries(chats).forEach(([phone, history]) => {
+        history.forEach(msg => {
+            if (msg.from !== 'me') return;
+            const cname = msg.campaignName || 'Unknown Campaign';
+            if (!campaignStats[cname]) {
+                campaignStats[cname] = { name: cname, sent: 0, delivered: 0, read: 0, replied: 0, contacts: new Set(), repliedContacts: new Set(), tags: new Set() };
+            }
+            const cs = campaignStats[cname];
+            cs.sent++;
+            cs.contacts.add(phone);
+            if (msg.tags && msg.tags.length) msg.tags.forEach(t => cs.tags.add(t));
+            if (msg.status === 'delivered' || msg.status === 'read') cs.delivered++;
+            if (msg.status === 'read') cs.read++;
+        });
+        // Check if this contact replied (any incoming message after a campaign message)
+        let hasCampaignMsg = false;
+        let hasReply = false;
+        history.forEach(msg => {
+            if (msg.from === 'me' && msg.campaignName) hasCampaignMsg = true;
+            if (msg.from !== 'me' && hasCampaignMsg) hasReply = true;
+        });
+        if (hasCampaignMsg && hasReply) {
+            // Find all campaign names this contact was messaged by
+            history.forEach(msg => {
+                if (msg.from === 'me' && msg.campaignName && campaignStats[msg.campaignName]) {
+                    campaignStats[msg.campaignName].replied++;
+                    campaignStats[msg.campaignName].repliedContacts.add(phone);
+                }
+            });
+        }
+    });
+
+    // Convert Sets to counts and calculate rates
+    const result = Object.values(campaignStats).map(cs => ({
+        name: cs.name,
+        sent: cs.sent,
+        delivered: cs.delivered,
+        read: cs.read,
+        replied: cs.replied,
+        uniqueContacts: cs.contacts.size,
+        tags: Array.from(cs.tags),
+        deliveryRate: cs.sent > 0 ? Math.round((cs.delivered / cs.sent) * 100) : 0,
+        readRate: cs.sent > 0 ? Math.round((cs.read / cs.sent) * 100) : 0,
+        replyRate: cs.contacts.size > 0 ? Math.round((cs.replied / cs.contacts.size) * 100) : 0
+    })).sort((a, b) => b.sent - a.sent);
+
+    res.json({ campaigns: result });
+});
 
 
 // --- Webhook Configuration ---
@@ -1182,7 +1278,9 @@ async function runQueueBatch(queue, batchSize, settings) {
                 headerType: queue.headerType || null,
                 headerImageUrl: headerImageUrl,
                 timestamp: Date.now(),
-                status: 'sent'
+                status: 'sent',
+                campaignName: queue.campaignName || null,
+                tags: queue.tags || []
             });
             saveJson(CHATS_FILE, chats);
 
@@ -1368,10 +1466,25 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
         const filteredList = buildFilteredContacts(rawList, skipExisting, skipInCRM);
         try { fs.unlinkSync(contactsFile.path); } catch(e) {}
 
+        // Collect all unique tags from the filtered contacts for campaign tracking
+        const allTags = new Set();
+        filteredList.forEach(c => {
+            if (c.tags) c.tags.forEach(t => allTags.add(t));
+            else {
+                // Look up tags from contacts.json
+                const contacts = getContacts();
+                const ct = contacts[c.parsedPhone];
+                if (ct && ct.tags) ct.tags.forEach(t => allTags.add(t));
+            }
+        });
+        const campaignTags = Array.from(allTags);
+
+        const resolvedCampaignName = campaignName || `Campaign ${new Date().toLocaleDateString()}`;
+
         if (dailyLimit > 0 && filteredList.length > dailyLimit) {
             // Queue mode: save entire list, send first batch
             const queue = {
-                campaignName: campaignName || `Campaign ${new Date().toLocaleDateString()}`,
+                campaignName: resolvedCampaignName,
                 templateName, templateBody, languageCode: languageCode || 'en_US',
                 mapping: mappingObj, dailyLimit,
                 contacts: filteredList,
@@ -1381,7 +1494,8 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
                 lastRunAt: null,
                 headerType,
                 headerMediaId,
-                headerUrl
+                headerUrl,
+                tags: campaignTags
             };
             saveJson(QUEUE_FILE, queue);
             res.json({ success: true, message: 'Queue created', queued: true, total: filteredList.length, dailyLimit });
@@ -1389,7 +1503,7 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
         } else {
             // Direct mode: send all now
             res.json({ success: true, message: 'Campaign started', queued: false });
-            startDirectCampaign(filteredList, templateName, templateBody, languageCode, mappingObj, settings, headerType, headerMediaId, headerUrl);
+            startDirectCampaign(filteredList, templateName, templateBody, languageCode, mappingObj, settings, headerType, headerMediaId, headerUrl, resolvedCampaignName, campaignTags);
         }
     };
 
@@ -1405,7 +1519,7 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
     }
 });
 
-async function startDirectCampaign(filteredList, templateName, templateBody, languageCode, mappingObj, settings, headerType, headerMediaId, headerUrl) {
+async function startDirectCampaign(filteredList, templateName, templateBody, languageCode, mappingObj, settings, headerType, headerMediaId, headerUrl, campaignName, campaignTags) {
     isCampaignRunning = true;
     try {
     io.emit('campaign_started', { total: filteredList.length, grandTotal: filteredList.length });
@@ -1478,7 +1592,9 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
                 headerType: headerType || null,
                 headerImageUrl: headerImageUrlD,
                 timestamp: Date.now(),
-                status: 'sent'
+                status: 'sent',
+                campaignName: campaignName || null,
+                tags: campaignTags || []
             });
             saveJson(CHATS_FILE, chats);
 

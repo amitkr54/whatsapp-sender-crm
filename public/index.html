@@ -650,6 +650,48 @@
                     </div>
                 </div>
 
+                <!-- Row 0: Campaign Comparison -->
+                <div class="card" style="padding: 20px; margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h3 style="margin:0; font-size:15px;">Campaign Comparison</h3>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="report-table" id="campaign-comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Campaign</th>
+                                    <th>Tags</th>
+                                    <th style="text-align:center;">Contacts</th>
+                                    <th style="text-align:center;">Sent</th>
+                                    <th style="text-align:center;">Delivered</th>
+                                    <th style="text-align:center;">Read</th>
+                                    <th style="text-align:center;">Replied</th>
+                                    <th style="text-align:center;">Reply Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="campaign-comparison-body">
+                                <tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:20px;">No campaign data yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Row 0.5: Conversion by Tag -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div class="card" style="padding: 20px;">
+                        <h3 style="margin:0 0 16px 0; font-size:15px;">Conversion by Tag (Reply Rate %)</h3>
+                        <div style="position:relative; height:220px;">
+                            <canvas id="chart-tag-conversion"></canvas>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 20px;">
+                        <h3 style="margin:0 0 16px 0; font-size:15px;">Messages by Tag</h3>
+                        <div style="position:relative; height:220px;">
+                            <canvas id="chart-tag-volume"></canvas>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Row 2: Charts -->
                 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <!-- 14-Day Timeline Chart -->
