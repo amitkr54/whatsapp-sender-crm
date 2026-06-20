@@ -1124,7 +1124,13 @@ app.post('/webhook', (req, res) => {
                             msgRecord.text = `👤 Contact: ${c?.name?.formatted_name || 'Unknown'}`;
                         } else if (msg.type === 'unsupported') {
                             msgRecord.type = 'text';
-                            msgRecord.text = `[Message type not supported by your WhatsApp version]`;
+                            const unsupportedType = msg.unsupported?.type || msg.unsupported?.error_code || '';
+                            if (unsupportedType) {
+                                msgRecord.text = `[Unsupported: ${unsupportedType} message]`;
+                                console.log(`[Webhook] Unsupported message from ${phone}: original type = ${unsupportedType}, full = ${JSON.stringify(msg.unsupported)}`);
+                            } else {
+                                msgRecord.text = `[Message type not supported]`;
+                            }
                         } else if (msg.type === 'button') {
                             msgRecord.type = 'text';
                             msgRecord.text = msg.button?.text || msg.button?.payload || '[Button reply]';
