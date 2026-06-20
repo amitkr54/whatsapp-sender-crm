@@ -416,38 +416,29 @@ app.delete('/api/media-library/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// One-time fix: backfill image URLs headerImageUrl for template messages (public)
+// Fix template header image URLs (public)
 app.post('/api/fix-images', (req, res) => {
     const chats = getChats();
     const lib = getMediaLibrary();
     const CORRECT_URL = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
     let fixed = 0;
-    let debug = [];
+    let types = {};
 
     for (const [phone, msgs] of Object.entries(chats)) {
         for (const msg of msgs) {
-            if (msg.type === 'template' && msg.from === 'me') {
-                const oldUrl = msg.headerImageUrl || 'NONE';
-                // Always set correct URL
-                if (msg.headerMediaId) {
-                    const found = lib.find(e => e.id === msg.headerMediaId);
-                    if (found && found.url) {
-                        msg.headerImageUrl = found.url;
-                        msg.headerType = 'IMAGE';
-                        fixed++;
-                        continue;
-                    }
-                }
+            types[msg.type || 'undefined'] = (types[msg.type || 'undefined'] || 0) + 1;
+            if (msg.from === 'me' && msg.text && msg.text.includes('Signage')) {
+                const old = msg.headerImageUrl;
                 msg.headerImageUrl = CORRECT_URL;
                 msg.headerType = 'IMAGE';
-                fixed++;
-                debug.push({ phone, oldUrl: oldUrl.substring(0, 80) });
+                msg.type = 'template';
+                if (old !== CORRECT_URL) fixed++;
             }
         }
     }
     saveJson(CHATS_FILE, chats);
-    backupToCloudinary(CHATS_FILE).catch(() => {});
-    res.json({ success: true, fixed, debug: debug.slice(0, 5) });
+    backupToCloudinary().catch(() => {});
+    res.json({ success: true, fixed, types });
 });
                 if (msg.headerImageUrl && msg.headerImageUrl.startsWith('/media/')) {
                     msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
@@ -2199,11 +2190,10 @@ server.listen(PORT, async () => {
         for (const [phone, msgs] of Object.entries(chats)) {
             for (const msg of msgs) {
                 if (msg.type === 'template' && msg.from === 'me') {
-                    if (!msg.headerImageUrl || msg.headerImageUrl.startsWith('/media/') || msg.headerImageUrl.includes('lib_885044940656003')) {
-                        msg.headerImageUrl = CORRECT_IMG;
-                        msg.headerType = 'IMAGE';
-                        imgFixed++;
-                    }
+                    const old = msg.headerImageUrl;
+                    msg.headerImageUrl = CORRECT_IMG;
+                    msg.headerType = 'IMAGE';
+                    if (old !== CORRECT_IMG) imgFixed++;
                 }
             }
         }
