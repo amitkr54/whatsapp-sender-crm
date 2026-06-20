@@ -28,7 +28,7 @@ function saveAuthorizedMachines(list) {
 }
 
 function requireAuth(req, res, next) {
-    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/ping' || req.path === '/api/webhook-url' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js' || req.path === '/login.html' || !req.path.startsWith('/api/')) return next();
+    if (req.path === '/webhook' || req.path === '/api/login' || req.path === '/api/ping' || req.path === '/api/webhook-url' || req.path === '/api/fix-images' || req.path.startsWith('/media/') || req.path.endsWith('.png') || req.path.endsWith('.css') || req.path.endsWith('.js') || req.path === '/socket.io/socket.io.js' || req.path === '/login.html' || !req.path.startsWith('/api/')) return next();
     const machineId = req.headers['x-machine-id'];
     if (machineId && getAuthorizedMachines().includes(machineId)) return next();
     return res.status(401).json({ error: 'Unauthorized' });
@@ -416,7 +416,7 @@ app.delete('/api/media-library/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// One-time fix: backfill headerImageUrl for template messages missing it
+// One-time fix: backfill headerImageUrl for template messages missing it (public, run once)
 app.post('/api/fix-images', (req, res) => {
     const settings = getSettings();
     const chats = getChats();
