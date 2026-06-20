@@ -2191,6 +2191,30 @@ server.listen(PORT, async () => {
         console.error('Cloudinary restore failed:', err.message);
     }
 
+    // Fix template header image URLs after restore
+    try {
+        const CORRECT_IMG = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
+        const chats = getChats();
+        let imgFixed = 0;
+        for (const [phone, msgs] of Object.entries(chats)) {
+            for (const msg of msgs) {
+                if (msg.type === 'template' && msg.from === 'me') {
+                    if (!msg.headerImageUrl || msg.headerImageUrl.startsWith('/media/') || msg.headerImageUrl.includes('lib_885044940656003')) {
+                        msg.headerImageUrl = CORRECT_IMG;
+                        msg.headerType = 'IMAGE';
+                        imgFixed++;
+                    }
+                }
+            }
+        }
+        if (imgFixed > 0) {
+            saveJson(CHATS_FILE, chats);
+            console.log(`[Startup] Fixed ${imgFixed} template header image URLs`);
+        }
+    } catch (err) {
+        console.error('Image fix failed:', err.message);
+    }
+
     // Backup to Cloudinary every 5 minutes
     setInterval(async () => {
         try { await backupToCloudinary(); } catch (e) { console.error('Auto-backup error:', e.message); }
