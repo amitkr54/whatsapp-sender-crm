@@ -756,6 +756,42 @@ app.get('/api/reports/insights', (req, res) => {
         stats.replyRate = Math.round((phonesReplied.size / (phonesMessaged.size || 1)) * 100);
     }
 
+    // Calculate estimated cost (India 2026 rates)
+    const RATES = {
+        marketing: 0.8631,
+        utility: 0.1150,
+        authentication: 0.1150,
+        'authentication-international': 2.4971,
+        service: 0
+    };
+    const GST_RATE = 0.18;
+    let costByCategory = { marketing: 0, utility: 0, authentication: 0, service: 0 };
+    let countByCategory = { marketing: 0, utility: 0, authentication: 0, service: 0 };
+
+    Object.values(chats).forEach(history => {
+        history.forEach(msg => {
+            if (msg.from === 'me' && msg.pricing && msg.pricing.billable && msg.pricing.category) {
+                const cat = msg.pricing.category;
+                countByCategory[cat] = (countByCategory[cat] || 0) + 1;
+                costByCategory[cat] = (costByCategory[cat] || 0) + (RATES[cat] || RATES.marketing);
+            }
+        });
+    });
+
+    const subtotal = Object.values(costByCategory).reduce((a, b) => a + b, 0);
+    const gst = subtotal * GST_RATE;
+    const totalCost = subtotal + gst;
+
+    stats.cost = {
+        byCategory: costByCategory,
+        countByCategory,
+        subtotal: Math.round(subtotal * 100) / 100,
+        gst: Math.round(gst * 100) / 100,
+        total: Math.round(totalCost * 100) / 100,
+        rates: RATES,
+        gstRate: GST_RATE * 100
+    };
+
     // Top repliers (most replies received)
     stats.topRepliers = stats.contactLog
         .filter(c => c.replyCount > 0)

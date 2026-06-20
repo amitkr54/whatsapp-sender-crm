@@ -2240,6 +2240,9 @@ async function loadReports() {
         // Per-Contact Log Table
         renderReportLog(stats.contactLog);
 
+        // Cost Summary
+        renderCostSummary(stats.cost);
+
         // Campaign Comparison Table
         renderCampaignComparison(campData.campaigns);
 
@@ -2261,6 +2264,55 @@ function setRateBar(id, rate) {
 
 let reportLogFilter = 'all';
 let selectedReportPhones = new Set();
+
+function renderCostSummary(cost) {
+    const container = document.getElementById('cost-summary-content');
+    if (!container || !cost) return;
+
+    const categories = [
+        { key: 'marketing', label: 'Marketing', color: '#fbbf24', bg: 'rgba(251,191,36,0.12)' },
+        { key: 'utility', label: 'Utility', color: '#00a884', bg: 'rgba(0,168,132,0.1)' },
+        { key: 'authentication', label: 'Authentication', color: '#53bdeb', bg: 'rgba(83,189,235,0.1)' },
+        { key: 'service', label: 'Service', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' }
+    ];
+
+    const breakdownHtml = categories.map(cat => {
+        const count = cost.countByCategory[cat.key] || 0;
+        const amt = cost.byCategory[cat.key] || 0;
+        if (count === 0) return '';
+        return `
+        <div style="flex:1; min-width:140px; background:${cat.bg}; border-radius:10px; padding:14px 16px;">
+            <div style="font-size:12px; color:${cat.color}; font-weight:600; margin-bottom:6px;">${cat.label}</div>
+            <div style="font-size:22px; font-weight:700; color:${cat.color};">${count}</div>
+            <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">messages × ₹${cost.rates[cat.key]}</div>
+            <div style="font-size:13px; font-weight:600; color:${cat.color}; margin-top:4px;">₹${amt.toFixed(2)}</div>
+        </div>`;
+    }).filter(Boolean).join('');
+
+    container.innerHTML = `
+    <div style="flex:2; min-width:200px;">
+        <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
+            ${breakdownHtml || '<div style="color:var(--text-dim); font-size:13px;">No billable messages yet</div>'}
+        </div>
+        <div style="border-top:1px solid var(--border); padding-top:12px; display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
+            <div>
+                <div style="font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Subtotal</div>
+                <div style="font-size:16px; font-weight:700; color:var(--text-main);">₹${cost.subtotal.toFixed(2)}</div>
+            </div>
+            <div>
+                <div style="font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">GST (${cost.gstRate}%)</div>
+                <div style="font-size:16px; font-weight:700; color:var(--text-main);">₹${cost.gst.toFixed(2)}</div>
+            </div>
+            <div style="background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.2); border-radius:10px; padding:10px 18px;">
+                <div style="font-size:11px; color:#fbbf24; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Total Estimated Cost</div>
+                <div style="font-size:24px; font-weight:800; color:#fbbf24;">₹${cost.total.toFixed(2)}</div>
+            </div>
+            <div style="font-size:11px; color:var(--text-dim); max-width:200px; line-height:1.5;">
+                * Based on delivered + read messages only. Failed messages are not charged. Rates as of Jan 2026.
+            </div>
+        </div>
+    </div>`;
+}
 
 function renderReportLog(contactLog) {
     const tbody = document.getElementById('report-log-body');
