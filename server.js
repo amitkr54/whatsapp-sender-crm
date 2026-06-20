@@ -41,7 +41,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(requireAuth);
-app.use(express.static('public'));
+app.use(express.static('public', { etag: false, lastModified: false, setHeaders: (res) => { res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); res.set('Pragma', 'no-cache'); } }));
 
 // Media route — serve from Cloudinary directly
 app.use('/media', (req, res, next) => {
