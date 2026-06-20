@@ -311,15 +311,12 @@ async function downloadMedia(mediaId, type, mimeType) {
                 console.log(`Cloudinary uploaded: ${filename} -> ${result.secure_url}`);
                 return result.secure_url;
             } catch (cloudErr) {
-                console.error('Cloudinary upload failed, falling back to local:', cloudErr.message);
+                console.error('Cloudinary upload failed:', cloudErr.message);
             }
         }
         
-        // Step 3b: Save locally as fallback
-        const filePath = path.join(MEDIA_DIR, filename);
-        fs.writeFileSync(filePath, fileRes.data);
-        console.log(`Media downloaded locally: ${filename} (${fileRes.data.length} bytes)`);
-        return `/media/${filename}`;
+        // No local storage — return Cloudinary URL or null
+        return null;
     } catch (err) {
         console.error('Media download error:', err.response?.data || err.message);
         return null;
@@ -1154,12 +1151,7 @@ app.post('/api/chat/send', upload.single('file'), async (req, res) => {
         };
         
         if (req.file) {
-            const ext = path.extname(req.file.originalname);
-            const filename = newMsg.id + ext;
-            const dest = path.join(__dirname, 'media', filename);
-            fs.copyFileSync(req.file.path, dest);
-
-            // Upload to Cloudinary if configured
+            // Upload to Cloudinary — no local storage
             const stgs = getSettings();
             const hasCloudinary = stgs.cloudinaryCloudName && stgs.cloudinaryApiKey && stgs.cloudinaryApiSecret;
             if (hasCloudinary) {
@@ -1169,13 +1161,12 @@ app.post('/api/chat/send', upload.single('file'), async (req, res) => {
                         api_key: stgs.cloudinaryApiKey,
                         api_secret: stgs.cloudinaryApiSecret
                     });
-                    const result = await cloudinary.uploader.upload(dest, { folder: 'whatsapp_media', resource_type: 'auto' });
+                    const result = await cloudinary.uploader.upload(req.file.path, { folder: 'whatsapp_media', resource_type: 'auto' });
                     newMsg.mediaUrl = result.secure_url;
                     console.log(`Outgoing media uploaded to Cloudinary: ${result.secure_url}`);
-                } catch (cloudErr) {
-                    console.error('Cloudinary upload failed for outgoing:', cloudErr.message);
-                    newMsg.mediaUrl = '/media/' + filename;
-                }
+                } catch(e) { console.error('Cloudinary upload for outgoing media failed:', e.message); }
+            }
+            try { fs.unlinkSync(req.file.path); } catch(e) {}
             } else {
                 newMsg.mediaUrl = '/media/' + filename;
             }
