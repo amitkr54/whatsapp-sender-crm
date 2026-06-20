@@ -742,6 +742,17 @@ function renderWhatsAppFormatting(text) {
     return html;
 }
 
+function stripWhatsAppFormatting(text) {
+    if (!text) return '';
+    return text
+        .replace(/\*/g, '')
+        .replace(/_/g, ' ')
+        .replace(/~/g, '')
+        .replace(/```/g, '')
+        .replace(/\{\{\d+\}\}/g, '')
+        .replace(/\n/g, ' ');
+}
+
 function updateLivePreview() {
     const headerType = document.getElementById('tpl-header-type').value;
     const headerText = document.getElementById('tpl-header-text').value;
@@ -1362,7 +1373,7 @@ function renderInboxList() {
         div.className = `chat-list-item ${currentChatPhone === phone ? 'selected' : ''}`;
         div.onclick = () => openChat(phone);
         
-        let preview = lastMsg.text || '';
+        let preview = stripWhatsAppFormatting(lastMsg.text || '');
         if (preview.length > 42) preview = preview.substring(0, 42) + '...';
         
         const timeStr = new Date(lastMsg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
