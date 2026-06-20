@@ -416,7 +416,7 @@ app.delete('/api/media-library/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// One-time fix: backfill headerImageUrl for template messages missing it (public, run once)
+// One-time fix: backfill image URLs headerImageUrl for template messages missing it (public, run once)
 app.post('/api/fix-images', (req, res) => {
     const settings = getSettings();
     const chats = getChats();
