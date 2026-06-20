@@ -1368,6 +1368,23 @@ function renderInboxList() {
         const initials = contactName.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
         const isFromMe = lastMsg.from === 'me';
         
+        // Determine tick status from last outgoing message
+        let lastOutMsg = null;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].from === 'me') { lastOutMsg = msgs[i]; break; }
+        }
+        const tickStatus = lastOutMsg?.status || 'sent';
+        let tickSvg = '';
+        if (isFromMe) {
+            if (tickStatus === 'read') {
+                tickSvg = '<svg width="18" height="16" viewBox="0 0 18 16" fill="none" style="flex-shrink:0;"><path d="M1.5 8.5L5 12L11.5 4" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8.5L9.5 12L16 4" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            } else if (tickStatus === 'delivered') {
+                tickSvg = '<svg width="18" height="16" viewBox="0 0 18 16" fill="none" style="flex-shrink:0;"><path d="M1.5 8.5L5 12L11.5 4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8.5L9.5 12L16 4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            } else {
+                tickSvg = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 8.5L6.5 12L13 4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            }
+        }
+
         div.innerHTML = `
             <div class="avatar-circle" style="width: 48px; height: 48px; flex-shrink: 0; background: linear-gradient(135deg, rgba(0,168,132,0.2), rgba(0,168,132,0.05)); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: -0.5px;">
                 ${initials}
@@ -1378,7 +1395,7 @@ function renderInboxList() {
                     <span style="font-size: 11px; color: ${isFromMe ? 'var(--accent)' : 'var(--text-dim)'}; flex-shrink: 0; margin-left: 8px; font-weight: 500;">${timeStr}</span>
                 </div>
                 <div style="font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px;">
-                    ${isFromMe ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;"><path d="M3 8.5L6.5 12L13 4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+                    ${tickSvg}
                     <span>${preview}</span>
                 </div>
             </div>
