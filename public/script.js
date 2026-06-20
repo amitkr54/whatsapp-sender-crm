@@ -2285,6 +2285,9 @@ function renderReportLog(contactLog) {
             ? `<span style="background:rgba(167,139,250,0.15); color:#a78bfa; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">✓ ${c.replyCount}</span>`
             : `<span style="color:var(--text-dim); font-size:12px;">—</span>`;
         const isChecked = selectedReportPhones.has(c.phone) ? 'checked' : '';
+        const statusBadge = c.lastStatus === 'failed' && c.lastError
+            ? `<span style="background:${sc.bg}; color:${sc.color}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; cursor:help;" title="${c.lastError.replace(/"/g, '&quot;')}">${sc.label}</span>`
+            : `<span style="background:${sc.bg}; color:${sc.color}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${sc.label}</span>`;
         return `
         <tr>
             <td style="text-align:center;"><input type="checkbox" class="rpt-checkbox" data-phone="${c.phone}" ${isChecked} onchange="toggleReportSelect('${c.phone}', this.checked)" style="cursor:pointer;"></td>
@@ -2294,7 +2297,7 @@ function renderReportLog(contactLog) {
             <td style="text-align:center; color:var(--accent);">${c.delivered}</td>
             <td style="text-align:center; color:#53bdeb;">${c.read}</td>
             <td style="text-align:center;">${repliedBadge}</td>
-            <td style="text-align:center;"><span style="background:${sc.bg}; color:${sc.color}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${sc.label}</span></td>
+            <td style="text-align:center;">${statusBadge}</td>
             <td style="color:var(--text-dim); font-size:12px;">${timeStr}</td>
         </tr>`;
     }).join('');

@@ -686,6 +686,7 @@ app.get('/api/reports/insights', (req, res) => {
         let sentCount = 0, readCount = 0, deliveredCount = 0, failedCount = 0, replyCount = 0;
         let lastSentStatus = 'sent';
         let lastSentTime = null;
+        let lastError = null;
 
         history.forEach(msg => {
             const msgDate = new Date(msg.timestamp);
@@ -701,7 +702,7 @@ app.get('/api/reports/insights', (req, res) => {
 
                 if (msg.status === 'delivered' || msg.status === 'read') { stats.totalDelivered++; deliveredCount++; }
                 if (msg.status === 'read') { stats.totalRead++; readCount++; }
-                if (msg.status === 'failed') { stats.totalFailed++; failedCount++; }
+                if (msg.status === 'failed') { stats.totalFailed++; failedCount++; lastError = msg.error || null; }
 
                 if (stats.timeline[dateStr]) {
                     stats.timeline[dateStr].sent++;
@@ -731,7 +732,8 @@ app.get('/api/reports/insights', (req, res) => {
                 replied: replyCount > 0,
                 replyCount,
                 lastStatus: lastSentStatus,
-                lastTime: lastSentTime
+                lastTime: lastSentTime,
+                lastError
             });
         }
     });
@@ -1425,8 +1427,29 @@ async function runQueueBatch(queue, batchSize, settings) {
 
             io.emit('message_sent', { phone, status: 'sent', id: msgId, index: i, globalIndex: start + i });
         } catch (error) {
-            console.error('Queue send failed:', error.response?.data || error.message);
-            io.emit('message_failed', { phone, error: JSON.stringify(error.response?.data || error.message), index: i, globalIndex: start + i });
+            const errorData = error.response?.data || error.message;
+            const errorMsg = typeof errorData === 'string' ? errorData : JSON.stringify(errorData);
+            console.error(`Queue send failed for ${phone}:`, errorMsg);
+
+            // Store failed message in chats so it shows in report
+            const chats = getChats();
+            if (!chats[phone]) chats[phone] = [];
+            const failedMsgId = `failed_${Date.now()}_${phone}`;
+            chats[phone].push({
+                id: failedMsgId,
+                from: 'me',
+                to: phone,
+                text: `[Campaign: ${queue.templateName}]`,
+                type: 'template',
+                timestamp: Date.now(),
+                status: 'failed',
+                error: errorMsg,
+                campaignName: queue.campaignName || null,
+                tags: queue.tags || []
+            });
+            saveJson(CHATS_FILE, chats);
+
+            io.emit('message_failed', { phone, error: errorMsg, index: i, globalIndex: start + i });
         }
         await new Promise(r => setTimeout(r, 500));
     }
