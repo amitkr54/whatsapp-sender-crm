@@ -1387,7 +1387,7 @@ function renderInboxList() {
         }
         const tickStatus = lastOutMsg?.status || 'sent';
         let tickSvg = '';
-        if (isFromMe) {
+        if (lastOutMsg) {
             if (tickStatus === 'read') {
                 tickSvg = '<svg width="18" height="16" viewBox="0 0 18 16" fill="none" style="flex-shrink:0;"><path d="M1.5 8.5L5 12L11.5 4" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 8.5L9.5 12L16 4" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
             } else if (tickStatus === 'delivered') {
@@ -1999,6 +1999,15 @@ socket.on('contact_updated', (data) => {
 });
 
 socket.on('message_status', (data) => {
+    if (globalChats[data.recipient]) {
+        const msgs = globalChats[data.recipient];
+        for (let i = msgs.length - 1; i >= 0; i--) {
+            if (msgs[i].id === data.messageId) {
+                msgs[i].status = data.status;
+                break;
+            }
+        }
+    }
     loadInboxList().then(() => {
         if (currentChatPhone === data.recipient) openChat(data.recipient);
     });
