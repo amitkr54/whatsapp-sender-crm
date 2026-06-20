@@ -2383,20 +2383,23 @@ function renderTagCharts(tags) {
 }
 
 // --- Drill-Down Functions ---
+let drilldownContacts = [];
+
 async function openTagDrilldown(tag) {
     document.getElementById('drilldown-title').textContent = `Tag: ${tag}`;
     document.getElementById('drilldown-subtitle').textContent = 'Loading contacts...';
     document.getElementById('drilldown-stats').innerHTML = '';
+    document.getElementById('drilldown-filters').innerHTML = '';
     document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim);">Loading...</td></tr>';
     openModal('drilldown-modal');
 
     try {
         const res = await fetch(`/api/reports/tags/${encodeURIComponent(tag)}/contacts`);
         const data = await res.json();
+        drilldownContacts = data.contacts;
 
         document.getElementById('drilldown-subtitle').textContent = `All contacts tagged "${tag}"`;
 
-        // Stats badges
         document.getElementById('drilldown-stats').innerHTML = `
             <div style="background:rgba(0,168,132,0.1); border:1px solid rgba(0,168,132,0.2); border-radius:8px; padding:8px 14px; font-size:13px;">
                 <span style="color:var(--text-dim);">Total:</span> <strong style="color:var(--text-main);">${data.total}</strong>
@@ -2409,7 +2412,8 @@ async function openTagDrilldown(tag) {
             </div>
         `;
 
-        renderDrilldownTable(data.contacts);
+        renderDrilldownFilters(data);
+        renderDrilldownTable(drilldownContacts);
     } catch(e) {
         document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">Failed to load data</td></tr>';
     }
@@ -2419,12 +2423,14 @@ async function openCampaignDrilldown(campaignName) {
     document.getElementById('drilldown-title').textContent = `Campaign: ${campaignName}`;
     document.getElementById('drilldown-subtitle').textContent = 'Loading contacts...';
     document.getElementById('drilldown-stats').innerHTML = '';
+    document.getElementById('drilldown-filters').innerHTML = '';
     document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim);">Loading...</td></tr>';
     openModal('drilldown-modal');
 
     try {
         const res = await fetch(`/api/reports/campaigns/${encodeURIComponent(campaignName)}/contacts`);
         const data = await res.json();
+        drilldownContacts = data.contacts;
 
         document.getElementById('drilldown-subtitle').textContent = `Contacts messaged by "${campaignName}"`;
 
@@ -2437,10 +2443,71 @@ async function openCampaignDrilldown(campaignName) {
             </div>
         `;
 
-        renderDrilldownTable(data.contacts);
+        renderDrilldownFilters(data);
+        renderDrilldownTable(drilldownContacts);
     } catch(e) {
         document.getElementById('drilldown-body').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">Failed to load data</td></tr>';
     }
+}
+
+function renderDrilldownFilters(data) {
+    const replied = data.replied || drilldownContacts.filter(c => c.hasReplied).length;
+    const read = drilldownContacts.filter(c => c.lastStatus === 'read' && !c.hasReplied).length;
+    const delivered = drilldownContacts.filter(c => c.lastStatus === 'delivered' && !c.hasReplied).length;
+    const sent = drilldownContacts.filter(c => c.lastStatus === 'sent' && !c.hasReplied).length;
+    const notMessaged = drilldownContacts.filter(c => c.lastStatus === 'not_sent' || c.sent === 0).length;
+
+    const filters = [
+        { label: 'All', count: drilldownContacts.length, color: 'var(--text-main)', bg: 'rgba(255,255,255,0.06)', filter: 'all' },
+        { label: 'Replied', count: replied, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)', filter: 'replied' },
+        { label: 'Read', count: read, color: '#53bdeb', bg: 'rgba(83,189,235,0.15)', filter: 'read' },
+        { label: 'Delivered', count: delivered, color: '#00a884', bg: 'rgba(0,168,132,0.15)', filter: 'delivered' },
+        { label: 'Sent', count: sent, color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', filter: 'sent' },
+    ];
+    if (notMessaged > 0) {
+        filters.push({ label: 'Not Messaged', count: notMessaged, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', filter: 'not_sent' });
+    }
+
+    const filtersHtml = filters.map(f => `
+        <button onclick="filterDrilldown('${f.filter}')" id="drilldown-filter-${f.filter}"
+            style="display:flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; border:1px solid ${f.color}33; background:${f.bg}; color:${f.color}; font-size:12px; font-weight:600; cursor:pointer; transition: all 0.2s;"
+            onmouseover="this.style.borderColor='${f.color}'" onmouseout="this.style.borderColor='${f.color}33'">
+            ${f.label} <span style="background:${f.color}22; padding:1px 6px; border-radius:8px; font-size:11px;">${f.count}</span>
+        </button>
+    `).join('');
+    document.getElementById('drilldown-filters').innerHTML = filtersHtml;
+
+    // Highlight "All" as active by default
+    const allBtn = document.getElementById('drilldown-filter-all');
+    if (allBtn) { allBtn.style.border = '1px solid var(--text-main)'; allBtn.style.fontWeight = '700'; }
+}
+
+function filterDrilldown(filterType) {
+    // Update button styles
+    document.querySelectorAll('#drilldown-filters button').forEach(btn => {
+        btn.style.border = '1px solid ' + (btn.style.color || 'var(--text-dim)') + '33';
+        btn.style.fontWeight = '600';
+    });
+    const activeBtn = document.getElementById(`drilldown-filter-${filterType}`);
+    if (activeBtn) { activeBtn.style.border = '1px solid ' + activeBtn.style.color; activeBtn.style.fontWeight = '700'; }
+
+    let filtered;
+    if (filterType === 'all') {
+        filtered = drilldownContacts;
+    } else if (filterType === 'replied') {
+        filtered = drilldownContacts.filter(c => c.hasReplied);
+    } else if (filterType === 'read') {
+        filtered = drilldownContacts.filter(c => c.lastStatus === 'read' && !c.hasReplied);
+    } else if (filterType === 'delivered') {
+        filtered = drilldownContacts.filter(c => c.lastStatus === 'delivered' && !c.hasReplied);
+    } else if (filterType === 'sent') {
+        filtered = drilldownContacts.filter(c => c.lastStatus === 'sent' && !c.hasReplied);
+    } else if (filterType === 'not_sent') {
+        filtered = drilldownContacts.filter(c => c.lastStatus === 'not_sent' || c.sent === 0);
+    } else {
+        filtered = drilldownContacts;
+    }
+    renderDrilldownTable(filtered);
 }
 
 function renderDrilldownTable(contacts) {
