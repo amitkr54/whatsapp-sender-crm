@@ -416,38 +416,38 @@ app.delete('/api/media-library/:id', (req, res) => {
     res.json({ success: true });
 });
 
-// One-time fix: backfill image URLs headerImageUrl for template messages missing it (public, run once)
+// One-time fix: backfill image URLs headerImageUrl for template messages (public)
 app.post('/api/fix-images', (req, res) => {
-    const settings = getSettings();
     const chats = getChats();
     const lib = getMediaLibrary();
     const CORRECT_URL = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
     let fixed = 0;
+    let debug = [];
 
     for (const [phone, msgs] of Object.entries(chats)) {
         for (const msg of msgs) {
             if (msg.type === 'template' && msg.from === 'me') {
-                const needsFix = !msg.headerImageUrl || msg.headerImageUrl.startsWith('/media/') || msg.headerImageUrl.includes('lib_885044940656003');
-                if (needsFix) {
-                    if (msg.headerMediaId) {
-                        const found = lib.find(e => e.id === msg.headerMediaId);
-                        if (found && found.url) {
-                            msg.headerImageUrl = found.url;
-                            msg.headerType = 'IMAGE';
-                            fixed++;
-                            continue;
-                        }
+                const oldUrl = msg.headerImageUrl || 'NONE';
+                // Always set correct URL
+                if (msg.headerMediaId) {
+                    const found = lib.find(e => e.id === msg.headerMediaId);
+                    if (found && found.url) {
+                        msg.headerImageUrl = found.url;
+                        msg.headerType = 'IMAGE';
+                        fixed++;
+                        continue;
                     }
-                    msg.headerImageUrl = CORRECT_URL;
-                    msg.headerType = 'IMAGE';
-                    fixed++;
                 }
+                msg.headerImageUrl = CORRECT_URL;
+                msg.headerType = 'IMAGE';
+                fixed++;
+                debug.push({ phone, oldUrl: oldUrl.substring(0, 80) });
             }
         }
     }
     saveJson(CHATS_FILE, chats);
     backupToCloudinary(CHATS_FILE).catch(() => {});
-    res.json({ success: true, fixed });
+    res.json({ success: true, fixed, debug: debug.slice(0, 5) });
 });
                 if (msg.headerImageUrl && msg.headerImageUrl.startsWith('/media/')) {
                     msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
