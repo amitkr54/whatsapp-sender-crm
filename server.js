@@ -43,43 +43,19 @@ app.use(express.json());
 app.use(requireAuth);
 app.use(express.static('public'));
 
-// Media route with Cloudinary fallback
-app.use('/media', async (req, res, next) => {
-    // Try local file first
-    const localPath = path.join(__dirname, 'media', req.url);
-    if (fs.existsSync(localPath)) {
-        return res.sendFile(localPath);
-    }
-    // Try Cloudinary fallback
+// Media route — serve from Cloudinary directly
+app.use('/media', (req, res, next) => {
     const settings = getSettings();
     if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
-        try {
-            cloudinary.config({
-                cloud_name: settings.cloudinaryCloudName,
-                api_key: settings.cloudinaryApiKey,
-                api_secret: settings.cloudinaryApiSecret
-            });
-            const safeName = req.url.replace(/^\//, '').replace(/[^a-zA-Z0-9._-]/g, '_');
-            const result = await cloudinary.api.resource(`chatlink_media/${safeName.replace(/\.[^.]+$/, '')}`);
-            if (result && result.secure_url) {
-                // Download and cache locally for next time
-                try {
-                    const fileRes = await axios.get(result.secure_url, { responseType: 'arraybuffer', timeout: 15000 });
-                    const cachePath = path.join(__dirname, 'media', safeName);
-                    fs.writeFileSync(cachePath, fileRes.data);
-                    return res.sendFile(cachePath);
-                } catch(e) {
-                    return res.redirect(result.secure_url);
-                }
-            }
-        } catch(e) {}
+        const safeName = req.url.replace(/^\//, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const publicId = safeName.replace(/\.[^.]+$/, '');
+        const cloudinaryUrl = `https://res.cloudinary.com/${settings.cloudinaryCloudName}/image/upload/chatlink_media/${publicId}`;
+        return res.redirect(cloudinaryUrl);
     }
+    // Fallback to local if no Cloudinary configured
     next();
 });
 
-if (!fs.existsSync(path.join(__dirname, 'media'))) {
-    fs.mkdirSync(path.join(__dirname, 'media'));
-}
 if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
     fs.mkdirSync(path.join(__dirname, 'uploads'));
 }
@@ -221,20 +197,11 @@ if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR);
 // MUST be before express.static so it doesn't get intercepted
 app.get('/media/proxy/:mediaId', async (req, res) => {
     const settings = getSettings();
-    if (!settings.accessToken) return res.status(401).json({ error: 'No token' });
-    
     const { mediaId } = req.params;
     const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
     
-    // Check if local file exists first
-    const existingFiles = fs.readdirSync(MEDIA_DIR).filter(f => f.startsWith(safeId));
-    if (existingFiles.length > 0) {
-        return res.sendFile(path.join(MEDIA_DIR, existingFiles[0]));
-    }
-    
-    // Check Cloudinary
-    const hasCloudinary = settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret;
-    if (hasCloudinary) {
+    // Check Cloudinary first
+    if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
         try {
             const result = await cloudinary.api.resource(`whatsapp_media/${safeId}`);
             if (result && result.secure_url) {
@@ -242,28 +209,39 @@ app.get('/media/proxy/:mediaId', async (req, res) => {
             }
         } catch(e) {}
     }
-    
+
+    // Fallback: fetch from Meta API
+    if (!settings.accessToken) return res.status(401).json({ error: 'No token' });
     try {
         const metaRes = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
             headers: { Authorization: `Bearer ${settings.accessToken}` }
         });
         if (!metaRes.data.url) return res.status(404).json({ error: 'No URL' });
-        
+
+        // Download and upload to Cloudinary for permanent storage
         const fileRes = await axios.get(metaRes.data.url, {
             headers: { Authorization: `Bearer ${settings.accessToken}` },
             responseType: 'arraybuffer',
             timeout: 30000
         });
         
-        const contentType = fileRes.headers['content-type'] || 'application/octet-stream';
-        const ext = contentType.split('/')[1]?.split(';')[0] || 'bin';
-        const filename = `${safeId}.${ext}`;
-        const filePath = path.join(MEDIA_DIR, filename);
-        
-        fs.writeFileSync(filePath, fileRes.data);
-        console.log(`Proxy downloaded: ${filename} (${fileRes.data.length} bytes)`);
-        
-        res.set('Content-Type', contentType);
+        if (settings.cloudinaryCloudName) {
+            cloudinary.config({
+                cloud_name: settings.cloudinaryCloudName,
+                api_key: settings.cloudinaryApiKey,
+                api_secret: settings.cloudinaryApiSecret
+            });
+            const contentType = fileRes.headers['content-type'] || 'application/octet-stream';
+            const ext = contentType.split('/')[1]?.split(';')[0] || 'bin';
+            const result = await cloudinary.uploader.upload(
+                Buffer.from(fileRes.data),
+                { folder: 'whatsapp_media', public_id: safeId, format: ext, resource_type: 'auto' }
+            );
+            return res.redirect(result.secure_url);
+        }
+
+        // If no Cloudinary, serve raw
+        res.set('Content-Type', fileRes.headers['content-type'] || 'application/octet-stream');
         res.send(fileRes.data);
     } catch (err) {
         console.error('Media proxy error:', err.response?.data || err.message);
@@ -394,42 +372,32 @@ app.post('/api/media-library/upload', upload.single('file'), async (req, res) =>
         });
         const mediaId = uploadRes.data.id;
 
-        // Copy file to local media folder for preview
-        const ext = path.extname(req.file.originalname) || '.jpg';
-        const filename = `lib_${mediaId}${ext}`;
-        const dest = path.join(__dirname, 'media', filename);
-        fs.copyFileSync(req.file.path, dest);
-        try { fs.unlinkSync(req.file.path); } catch(e) {}
-
-        // Also upload to Cloudinary for persistence
+        // Upload to Cloudinary ONLY — no local storage
         let cloudinaryUrl = null;
-        try {
-            if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
-                cloudinary.config({
-                    cloud_name: settings.cloudinaryCloudName,
-                    api_key: settings.cloudinaryApiKey,
-                    api_secret: settings.cloudinaryApiSecret
-                });
-                const result = await cloudinary.uploader.upload(dest, {
-                    folder: 'chatlink_media',
-                    public_id: `lib_${mediaId}`,
-                    overwrite: true
-                });
-                cloudinaryUrl = result.secure_url;
-                console.log(`Media uploaded to Cloudinary: ${cloudinaryUrl}`);
-            }
-        } catch (cErr) {
-            console.error('Cloudinary media upload failed:', cErr.message);
+        if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
+            cloudinary.config({
+                cloud_name: settings.cloudinaryCloudName,
+                api_key: settings.cloudinaryApiKey,
+                api_secret: settings.cloudinaryApiSecret
+            });
+            const result = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'chatlink_media',
+                public_id: `lib_${mediaId}`,
+                overwrite: true
+            });
+            cloudinaryUrl = result.secure_url;
+            console.log(`Media uploaded to Cloudinary: ${cloudinaryUrl}`);
         }
 
-        // Save entry to library
+        try { fs.unlinkSync(req.file.path); } catch(e) {}
+
+        // Save entry to library with Cloudinary URL
         const library = getMediaLibrary();
         const entry = {
             id: mediaId,
             name: req.body.name || req.file.originalname,
             filename: req.file.originalname,
-            localUrl: `/media/${filename}`,
-            cloudinaryUrl: cloudinaryUrl,
+            url: cloudinaryUrl,
             uploadedAt: Date.now()
         };
         library.unshift(entry);
@@ -1408,7 +1376,7 @@ async function runQueueBatch(queue, batchSize, settings) {
                 if (queue.headerType === 'IMAGE' && queue.headerMediaId) {
                     const lib = getMediaLibrary();
                     const found = lib.find(e => e.id === queue.headerMediaId);
-                    if (found) return found.localUrl;
+                    if (found) return found.url || found.localUrl || found.cloudinaryUrl;
                 }
                 return queue.headerUrl || null;
             })();
@@ -1533,38 +1501,30 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
             
             headerMediaId = uploadRes.data.id;
 
-            // Auto-save to media library so it can be reused next time
+            // Auto-save to media library — Cloudinary only, no local storage
             try {
-                const ext = path.extname(headerFile.originalname) || '.jpg';
-                const filename = `lib_${headerMediaId}${ext}`;
-                const dest = path.join(__dirname, 'media', filename);
-                fs.copyFileSync(headerFile.path, dest);
-
-                // Also upload to Cloudinary
                 let cloudinaryUrl = null;
-                try {
-                    if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
-                        cloudinary.config({
-                            cloud_name: settings.cloudinaryCloudName,
-                            api_key: settings.cloudinaryApiKey,
-                            api_secret: settings.cloudinaryApiSecret
-                        });
-                        const cResult = await cloudinary.uploader.upload(dest, {
-                            folder: 'chatlink_media',
-                            public_id: `lib_${headerMediaId}`,
-                            overwrite: true
-                        });
-                        cloudinaryUrl = cResult.secure_url;
-                    }
-                } catch (cErr) { console.error('Cloudinary upload for campaign header failed:', cErr.message); }
+                if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
+                    cloudinary.config({
+                        cloud_name: settings.cloudinaryCloudName,
+                        api_key: settings.cloudinaryApiKey,
+                        api_secret: settings.cloudinaryApiSecret
+                    });
+                    const cResult = await cloudinary.uploader.upload(headerFile.path, {
+                        folder: 'chatlink_media',
+                        public_id: `lib_${headerMediaId}`,
+                        overwrite: true
+                    });
+                    cloudinaryUrl = cResult.secure_url;
+                    console.log(`Campaign header uploaded to Cloudinary: ${cloudinaryUrl}`);
+                }
 
                 const library = getMediaLibrary();
                 library.unshift({
                     id: headerMediaId,
                     name: headerFile.originalname,
                     filename: headerFile.originalname,
-                    localUrl: `/media/${filename}`,
-                    cloudinaryUrl: cloudinaryUrl,
+                    url: cloudinaryUrl,
                     uploadedAt: Date.now()
                 });
                 saveJson(MEDIA_LIBRARY_FILE, library);
@@ -1603,37 +1563,29 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
             headerMediaId = uploadRes.data.id;
             console.log(`Template default image uploaded to Meta, media_id: ${headerMediaId}`);
 
-            // Save locally and add to media library so chat UI can display it
+            // Save to Cloudinary only — no local storage
             try {
-                const filename = `lib_${headerMediaId}${ext}`;
-                const dest = path.join(__dirname, 'media', filename);
-                fs.copyFileSync(tempFile, dest);
-
-                // Also upload to Cloudinary
                 let cloudinaryUrl = null;
-                try {
-                    if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
-                        cloudinary.config({
-                            cloud_name: settings.cloudinaryCloudName,
-                            api_key: settings.cloudinaryApiKey,
-                            api_secret: settings.cloudinaryApiSecret
-                        });
-                        const cResult = await cloudinary.uploader.upload(dest, {
-                            folder: 'chatlink_media',
-                            public_id: `lib_${headerMediaId}`,
-                            overwrite: true
-                        });
-                        cloudinaryUrl = cResult.secure_url;
-                    }
-                } catch (cErr) { console.error('Cloudinary upload for template default failed:', cErr.message); }
+                if (settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret) {
+                    cloudinary.config({
+                        cloud_name: settings.cloudinaryCloudName,
+                        api_key: settings.cloudinaryApiKey,
+                        api_secret: settings.cloudinaryApiSecret
+                    });
+                    const cResult = await cloudinary.uploader.upload(tempFile, {
+                        folder: 'chatlink_media',
+                        public_id: `lib_${headerMediaId}`,
+                        overwrite: true
+                    });
+                    cloudinaryUrl = cResult.secure_url;
+                }
 
                 const library = getMediaLibrary();
                 library.unshift({
                     id: headerMediaId,
                     name: `template_default${ext}`,
                     filename: `template_default${ext}`,
-                    localUrl: `/media/${filename}`,
-                    cloudinaryUrl: cloudinaryUrl,
+                    url: cloudinaryUrl,
                     uploadedAt: Date.now()
                 });
                 saveJson(MEDIA_LIBRARY_FILE, library);
@@ -1762,7 +1714,7 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
                 if (headerType === 'IMAGE' && headerMediaId) {
                     const lib = getMediaLibrary();
                     const found = lib.find(e => e.id === headerMediaId);
-                    if (found) return found.localUrl;
+                    if (found) return found.url || found.localUrl || found.cloudinaryUrl;
                 }
                 return headerUrl || null;
             })();

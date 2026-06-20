@@ -645,9 +645,10 @@ async function loadMediaLibrary() {
 
         grid.innerHTML = list.map(item => {
             const isSelected = selectedInput.value === item.id;
+            const imgUrl = item.url || item.localUrl || item.cloudinaryUrl || '';
             return `
-                <div class="media-lib-item" id="media-item-${item.id}" onclick="selectMediaLibraryItem('${item.id}', '${item.localUrl}')" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid ${isSelected ? '#a78bfa' : 'rgba(255,255,255,0.1)'}; padding:8px; border-radius:8px; cursor:pointer; position:relative; transition: border 0.2s;">
-                    <img src="${item.localUrl}" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" />
+                <div class="media-lib-item" id="media-item-${item.id}" onclick="selectMediaLibraryItem('${item.id}', '${imgUrl}')" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid ${isSelected ? '#a78bfa' : 'rgba(255,255,255,0.1)'}; padding:8px; border-radius:8px; cursor:pointer; position:relative; transition: border 0.2s;">
+                    <img src="${imgUrl}" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" />
                     <div style="flex:1; overflow:hidden;">
                         <div style="font-size:12px; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;">${item.name}</div>
                         <div style="font-size:10px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ID: ${item.id}</div>
@@ -663,8 +664,9 @@ async function loadMediaLibrary() {
             const selectedItem = list.find(i => i.id === selectedInput.value);
             if (selectedItem) {
                 const headerEl = document.getElementById('camp-prev-header');
+                const imgUrl = selectedItem.url || selectedItem.localUrl || selectedItem.cloudinaryUrl || '';
                 if (headerEl && !headerEl.innerHTML) {
-                    headerEl.innerHTML = `<img src="${selectedItem.localUrl}" style="width: 100%; border-radius: 6px; max-height: 180px; object-fit: cover; margin-bottom: 5px;">`;
+                    headerEl.innerHTML = `<img src="${imgUrl}" style="width: 100%; border-radius: 6px; max-height: 180px; object-fit: cover; margin-bottom: 5px;">`;
                 }
             }
         }
