@@ -687,6 +687,9 @@ app.get('/api/reports/insights', (req, res) => {
         let lastSentStatus = 'sent';
         let lastSentTime = null;
         let lastError = null;
+        let lastBillable = null;
+        let lastPricingCategory = null;
+        let lastPricingType = null;
 
         history.forEach(msg => {
             const msgDate = new Date(msg.timestamp);
@@ -703,6 +706,11 @@ app.get('/api/reports/insights', (req, res) => {
                 if (msg.status === 'delivered' || msg.status === 'read') { stats.totalDelivered++; deliveredCount++; }
                 if (msg.status === 'read') { stats.totalRead++; readCount++; }
                 if (msg.status === 'failed') { stats.totalFailed++; failedCount++; lastError = msg.error || null; }
+                if (msg.pricing && msg.pricing.billable !== undefined) {
+                    lastBillable = msg.pricing.billable;
+                    lastPricingCategory = msg.pricing.category || null;
+                    lastPricingType = msg.pricing.type || null;
+                }
 
                 if (stats.timeline[dateStr]) {
                     stats.timeline[dateStr].sent++;
@@ -733,7 +741,10 @@ app.get('/api/reports/insights', (req, res) => {
                 replyCount,
                 lastStatus: lastSentStatus,
                 lastTime: lastSentTime,
-                lastError
+                lastError,
+                billable: lastBillable,
+                pricingCategory: lastPricingCategory,
+                pricingType: lastPricingType
             });
         }
     });
@@ -866,6 +877,7 @@ app.get('/api/reports/tags/:tag/contacts', (req, res) => {
         if (!contact.tags || !contact.tags.includes(tag)) return;
         const history = chats[phone] || [];
         let sent = 0, delivered = 0, read = 0, replied = 0, lastStatus = 'none', lastTime = null;
+        let billable = null, pricingCategory = null, pricingType = null;
         history.forEach(msg => {
             if (msg.from === 'me') {
                 sent++;
@@ -873,6 +885,11 @@ app.get('/api/reports/tags/:tag/contacts', (req, res) => {
                 if (msg.status === 'read') read++;
                 lastStatus = msg.status || 'sent';
                 lastTime = msg.timestamp;
+                if (msg.pricing && msg.pricing.billable !== undefined) {
+                    billable = msg.pricing.billable;
+                    pricingCategory = msg.pricing.category;
+                    pricingType = msg.pricing.type;
+                }
             } else {
                 replied++;
             }
@@ -884,7 +901,8 @@ app.get('/api/reports/tags/:tag/contacts', (req, res) => {
             sent, delivered, read, replied,
             hasReplied: replied > 0,
             lastStatus: sent > 0 ? lastStatus : 'not_sent',
-            lastTime
+            lastTime,
+            billable, pricingCategory, pricingType
         });
     });
 
@@ -916,7 +934,8 @@ app.get('/api/reports/campaigns/:name/contacts', (req, res) => {
                     const ct = contacts[phone] || {};
                     contactMap[phone] = {
                         phone, name: ct.name || phone, tags: ct.tags || [],
-                        sent: 0, delivered: 0, read: 0, replied: 0, lastStatus: 'sent', lastTime: null
+                        sent: 0, delivered: 0, read: 0, replied: 0, lastStatus: 'sent', lastTime: null,
+                        billable: null, pricingCategory: null, pricingType: null
                     };
                 }
                 contactMap[phone].sent++;
@@ -924,6 +943,11 @@ app.get('/api/reports/campaigns/:name/contacts', (req, res) => {
                 if (msg.status === 'read') contactMap[phone].read++;
                 contactMap[phone].lastStatus = msg.status || 'sent';
                 contactMap[phone].lastTime = msg.timestamp;
+                if (msg.pricing && msg.pricing.billable !== undefined) {
+                    contactMap[phone].billable = msg.pricing.billable;
+                    contactMap[phone].pricingCategory = msg.pricing.category;
+                    contactMap[phone].pricingType = msg.pricing.type;
+                }
             }
         });
         // Check for replies from this contact
@@ -1052,6 +1076,20 @@ app.post('/webhook', (req, res) => {
                             const msgObj = chats[phone].find(m => m.id === status.id);
                             if (msgObj) {
                                 msgObj.status = status.status;
+                                if (status.status === 'failed' && status.errors && status.errors.length > 0) {
+                                    const err = status.errors[0];
+                                    msgObj.error = `Error ${err.code}: ${err.title} - ${err.message}${err.error_data && err.error_data.details ? ' (' + err.error_data.details + ')' : ''}`;
+                                    console.log(`[Webhook] Failed msg to ${phone}: ${msgObj.error}`);
+                                }
+                                if (status.pricing) {
+                                    msgObj.pricing = {
+                                        billable: status.pricing.billable,
+                                        type: status.pricing.type,
+                                        category: status.pricing.category,
+                                        model: status.pricing.pricing_model
+                                    };
+                                    console.log(`[Webhook] Pricing for ${phone}: billable=${status.pricing.billable} type=${status.pricing.type} category=${status.pricing.category}`);
+                                }
                                 saveJson(CHATS_FILE, chats);
                             }
                         }
@@ -1060,7 +1098,9 @@ app.post('/webhook', (req, res) => {
                             recipient: phone,
                             messageId: status.id,
                             status: status.status,
-                            timestamp: status.timestamp
+                            timestamp: status.timestamp,
+                            error: status.status === 'failed' && status.errors && status.errors.length > 0 ? status.errors[0].message : null,
+                            pricing: status.pricing || null
                         });
                     }
                 

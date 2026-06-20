@@ -2267,7 +2267,7 @@ function renderReportLog(contactLog) {
     if (!tbody) return;
 
     if (!contactLog || contactLog.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:30px;">No messages sent yet. Launch a campaign to see results here.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-dim); padding:30px;">No messages sent yet. Launch a campaign to see results here.</td></tr>';
         return;
     }
 
@@ -2298,6 +2298,7 @@ function renderReportLog(contactLog) {
             <td style="text-align:center; color:#53bdeb;">${c.read}</td>
             <td style="text-align:center;">${repliedBadge}</td>
             <td style="text-align:center;">${statusBadge}</td>
+            <td style="text-align:center; font-size:11px;">${c.billable === true ? '<span style="background:rgba(251,191,36,0.12); color:#fbbf24; padding:2px 8px; border-radius:10px; font-weight:600;">' + (c.pricingCategory || 'marketing') + '</span>' : c.billable === false ? '<span style="background:rgba(0,168,132,0.1); color:var(--accent); padding:2px 8px; border-radius:10px; font-weight:600;">Free</span>' : '<span style="color:var(--text-dim);">—</span>'}</td>
             <td style="color:var(--text-dim); font-size:12px;">${timeStr}</td>
         </tr>`;
     }).join('');
@@ -2658,6 +2659,14 @@ function renderDrilldownTable(contacts) {
         } else {
             statusBadge = `<span style="color:var(--text-dim); font-size:11px;">Not messaged</span>`;
         }
+        let billingBadge;
+        if (c.billable === true) {
+            billingBadge = `<span style="background:rgba(251,191,36,0.12); color:#fbbf24; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">💰 ${c.pricingCategory || 'marketing'}</span>`;
+        } else if (c.billable === false) {
+            billingBadge = `<span style="background:rgba(0,168,132,0.1); color:var(--accent); padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600;">Free</span>`;
+        } else {
+            billingBadge = `<span style="color:var(--text-dim); font-size:11px;">—</span>`;
+        }
         return `
         <tr style="cursor: pointer;" onclick="window.open('/?chat=${c.phone}', '_blank')">
             <td style="font-weight:500;">${c.name}</td>
@@ -2666,6 +2675,7 @@ function renderDrilldownTable(contacts) {
             <td style="text-align:center; font-weight:600;">${c.sent || 0}</td>
             <td style="text-align:center; color:#53bdeb;">${c.read || 0}</td>
             <td style="text-align:center;">${statusBadge}</td>
+            <td style="text-align:center;">${billingBadge}</td>
         </tr>`;
     }).join('');
 }
