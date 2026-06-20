@@ -421,14 +421,14 @@ app.post('/api/fix-images', (req, res) => {
     const settings = getSettings();
     const chats = getChats();
     const lib = getMediaLibrary();
+    const CORRECT_URL = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
     let fixed = 0;
 
     for (const [phone, msgs] of Object.entries(chats)) {
         for (const msg of msgs) {
             if (msg.type === 'template' && msg.from === 'me') {
-                // Fix missing headerImageUrl
-                if (!msg.headerImageUrl) {
-                    // Try to find from media library
+                const needsFix = !msg.headerImageUrl || msg.headerImageUrl.startsWith('/media/') || msg.headerImageUrl.includes('lib_885044940656003');
+                if (needsFix) {
                     if (msg.headerMediaId) {
                         const found = lib.find(e => e.id === msg.headerMediaId);
                         if (found && found.url) {
@@ -438,13 +438,17 @@ app.post('/api/fix-images', (req, res) => {
                             continue;
                         }
                     }
-                    // Use the template's default header URL from Cloudinary
-                    // signage_ template image
-                    msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
+                    msg.headerImageUrl = CORRECT_URL;
                     msg.headerType = 'IMAGE';
                     fixed++;
                 }
-                // Fix broken /media/ URLs
+            }
+        }
+    }
+    saveJson(CHATS_FILE, chats);
+    backupToCloudinary(CHATS_FILE).catch(() => {});
+    res.json({ success: true, fixed });
+});
                 if (msg.headerImageUrl && msg.headerImageUrl.startsWith('/media/')) {
                     msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
                     fixed++;
