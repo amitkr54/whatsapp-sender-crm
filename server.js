@@ -1404,6 +1404,122 @@ app.post('/api/chat/send-template', async (req, res) => {
 // --- Campaign Queue System ---
 let isCampaignRunning = false;
 
+// Helper: Auto-start next queued campaign only if its time has come
+function startNextQueuedCampaign() {
+    const list = getScheduledCampaigns();
+    const now = Date.now();
+    
+    // Find next queued campaign whose scheduled time has passed
+    const readyQueued = list.find(s => s.status === 'queued' && s.scheduleTime <= now);
+    if (readyQueued) {
+        console.log(`[Queue] Auto-starting queued campaign: ${readyQueued.campaignName} (scheduled time arrived)`);
+        readyQueued.status = 'running';
+        readyQueued.startedAt = now;
+        saveScheduledCampaigns(list);
+        
+        // Trigger the scheduled campaign send
+        const settings = getSettings();
+        if (settings.accessToken && settings.phoneNumberId) {
+            runScheduledCampaign(readyQueued);
+        }
+    }
+}
+
+// Helper: Run a scheduled campaign
+async function runScheduledCampaign(campaign) {
+    if (isCampaignRunning) return;
+    isCampaignRunning = true;
+    
+    const settings = getSettings();
+    const contacts = campaign.contacts || [];
+    let sent = 0, failed = 0;
+    
+    for (let i = 0; i < contacts.length; i++) {
+        const contact = contacts[i];
+        const phone = contact.parsedPhone || contact.Phone || contact.phone;
+        if (!phone) continue;
+        
+        try {
+            let headerMediaId = campaign.headerMediaId;
+            
+            const payload = {
+                messaging_product: 'whatsapp',
+                to: phone,
+                type: 'template',
+                template: {
+                    name: campaign.templateName,
+                    language: { code: campaign.languageCode || 'en_US' },
+                    components: []
+                }
+            };
+            
+            // Add header if needed
+            if (campaign.headerType && campaign.headerMediaId && payload.template.components.length === 0) {
+                payload.template.components.push({
+                    type: 'header',
+                    parameters: [{ type: 'image', image: { id: headerMediaId } }]
+                });
+            }
+            
+            // Add body variables
+            if (campaign.mapping && Object.keys(campaign.mapping).length > 0) {
+                const bodyParams = Object.values(campaign.mapping).map(v => ({
+                    type: 'text',
+                    text: String(v).replace(/\{name\}/gi, contact.Name || contact.name || '').replace(/\{phone\}/gi, phone)
+                }));
+                if (bodyParams.length > 0) {
+                    payload.template.components.push({ type: 'body', parameters: bodyParams });
+                }
+            }
+            
+            const res = await axios.post(`https://graph.facebook.com/v20.0/${settings.phoneNumberId}/messages`, payload, {
+                headers: { Authorization: `Bearer ${settings.accessToken}`, 'Content-Type': 'application/json' }
+            });
+            
+            if (res.data.messages && res.data.messages[0]) {
+                sent++;
+                // Save to chats
+                const chats = getChats();
+                if (!chats[phone]) chats[phone] = [];
+                chats[phone].push({
+                    from: 'me',
+                    text: `[Template: ${campaign.templateName}]`,
+                    timestamp: Date.now(),
+                    status: 'sent',
+                    campaignId: campaign.id,
+                    waMsgId: res.data.messages[0].id
+                });
+                saveJson(CHATS_FILE, chats);
+            }
+        } catch (err) {
+            failed++;
+            console.error(`[Queue] Failed to send to ${phone}:`, err.message);
+        }
+        
+        // Delay between messages
+        if (i < contacts.length - 1) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+    
+    // Update campaign status
+    const list = getScheduledCampaigns();
+    const idx = list.findIndex(s => s.id === campaign.id);
+    if (idx >= 0) {
+        list[idx].status = 'sent';
+        list[idx].completedAt = Date.now();
+        list[idx].sentCount = sent;
+        list[idx].failedCount = failed;
+        saveScheduledCampaigns(list);
+    }
+    
+    isCampaignRunning = false;
+    io.emit('campaign_finished', { sent, failed, campaignId: campaign.id });
+    
+    // Auto-start next queued campaign
+    startNextQueuedCampaign();
+}
+
 // Queue API: Get current status
 app.get('/api/queue/status', (req, res) => {
     const queue = getJson(QUEUE_FILE, null);
@@ -1450,6 +1566,8 @@ app.delete('/api/queue/clear', (req, res) => {
 // Queue API: Stop running batch
 app.post('/api/queue/stop', (req, res) => {
     isCampaignRunning = false;
+    // Auto-start next queued campaign
+    startNextQueuedCampaign();
     res.json({ success: true, message: 'Stop signal sent.' });
 });
 
@@ -1463,7 +1581,10 @@ function saveScheduledCampaigns(list) {
 
 // Schedule API: Create a scheduled campaign
 app.post('/api/schedule/create', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'headerFile', maxCount: 1 }]), async (req, res) => {
-    if (isCampaignRunning) return res.status(400).json({ error: 'A campaign is already running' });
+    if (isCampaignRunning) {
+        // Auto-queue: schedule for 5 minutes after current campaign is expected to complete
+        // We'll adjust the time automatically when the running campaign finishes
+    }
 
     const { templateName, templateBody, languageCode, mapping, campaignName, headerUrl, headerType, scheduleTime } = req.body;
     const mappingObj = JSON.parse(mapping || '{}');
@@ -1554,6 +1675,10 @@ app.post('/api/schedule/create', upload.fields([{ name: 'file', maxCount: 1 }, {
         });
 
         const id = 'sched_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex');
+        
+        // If a campaign is running, mark new schedule as "queued" - it will auto-start after
+        const currentStatus = isCampaignRunning ? 'queued' : 'scheduled';
+        
         const scheduled = {
             id,
             campaignName: campaignName || `Scheduled ${scheduleDate.toLocaleDateString()}`,
@@ -1563,7 +1688,7 @@ app.post('/api/schedule/create', upload.fields([{ name: 'file', maxCount: 1 }, {
             headerType, headerMediaId, headerUrl,
             tags: Array.from(allTags),
             scheduleTime: scheduleDate.getTime(),
-            status: 'scheduled',
+            status: currentStatus,
             createdAt: Date.now()
         };
 
@@ -1857,6 +1982,8 @@ async function runQueueBatch(queue, batchSize, settings) {
     } finally {
         isCampaignRunning = false;
         io.emit('campaign_finished', { completed: false, error: true });
+        // Auto-start next queued campaign
+        startNextQueuedCampaign();
     }
 }
 
@@ -2175,6 +2302,8 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
     } finally {
         isCampaignRunning = false;
         io.emit('campaign_finished', { completed: false, total: filteredList.length, error: true });
+        // Auto-start next queued campaign
+        startNextQueuedCampaign();
     }
 }
 // Cloud deployment: use app's own URL for webhooks

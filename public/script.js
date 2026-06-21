@@ -1949,6 +1949,7 @@ async function loadScheduledCampaigns() {
             }
             let statusColor, statusBg, statusLabel;
             if (s.status === 'scheduled') { statusColor = '#fbbf24'; statusBg = 'rgba(251,191,36,0.12)'; statusLabel = `⏰ ${countdown}`; }
+            else if (s.status === 'queued') { statusColor = '#a78bfa'; statusBg = 'rgba(167,139,250,0.12)'; statusLabel = '📋 Queued (auto-starts after current)'; }
             else if (s.status === 'sent') { statusColor = '#00a884'; statusBg = 'rgba(0,168,132,0.1)'; statusLabel = '✅ Sent'; }
             else if (s.status === 'running') { statusColor = '#53bdeb'; statusBg = 'rgba(83,189,235,0.1)'; statusLabel = '🔄 Running'; }
             else { statusColor = '#ef4444'; statusBg = 'rgba(239,68,68,0.1)'; statusLabel = '❌ Failed'; }
