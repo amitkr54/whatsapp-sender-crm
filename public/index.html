@@ -62,7 +62,7 @@
     <div style="width: 380px; display: flex; flex-direction: column; border-right: 1px solid var(--border); background-color: var(--sidebar-bg); flex-shrink: 0;">
         <div style="padding: 16px 16px 12px 16px; border-bottom: 1px solid var(--border); background-color: var(--sidebar-bg);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main);">Chats</h3>
+                <h3 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main);">Chats <span id="engaged-count" style="font-size: 12px; font-weight: 500; color: var(--accent); background: rgba(0,168,132,0.12); padding: 2px 8px; border-radius: 10px; vertical-align: middle;"></span></h3>
                 <div style="display: flex; gap: 6px;">
                     <button class="icon-btn" title="Filter chats" style="width: 32px; height: 32px; border-radius: 50%;">
                         <i data-lucide="filter" style="width: 16px;"></i>
@@ -633,7 +633,7 @@
                 </div>
 
                 <!-- KPI Rate Cards Row -->
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px;">
                     <!-- Sent -->
                     <div class="stat-card" style="border-left: 4px solid #94a3b8; position: relative; overflow: hidden;">
                         <span class="stat-label">Total Sent</span>
@@ -676,6 +676,16 @@
                             <span id="rate-reply" style="font-size:11px; color:#a78bfa; font-weight:600; min-width:30px;">0%</span>
                         </div>
                         <i data-lucide="reply" style="position:absolute; right:16px; top:50%; transform:translateY(-50%); width:28px; height:28px; color:rgba(167,139,250,0.15);"></i>
+                    </div>
+                    <!-- Stuck/Unverified -->
+                    <div class="stat-card" style="border-left: 4px solid #ef4444; position: relative; overflow: hidden;">
+                        <span class="stat-label">Unverified (Meta Silent Drops)</span>
+                        <span id="stat-stuck" class="stat-value" style="color:#ef4444;">0</span>
+                        <span style="font-size: 12px; color: var(--text-dim);">Sent but no Meta status</span>
+                        <button id="btn-verify-stuck" onclick="verifyStuckMessages()" class="btn btn-sm" style="margin-top: 8px; background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                            <i data-lucide="refresh-cw" style="width:12px;"></i> Verify Now
+                        </button>
+                        <i data-lucide="alert-triangle" style="position:absolute; right:16px; top:50%; transform:translateY(-50%); width:28px; height:28px; color:rgba(239,68,68,0.15);"></i>
                     </div>
                 </div>
 

@@ -440,17 +440,6 @@ app.post('/api/fix-images', (req, res) => {
     backupToCloudinary().catch(() => {});
     res.json({ success: true, fixed, types });
 });
-                if (msg.headerImageUrl && msg.headerImageUrl.startsWith('/media/')) {
-                    msg.headerImageUrl = 'https://res.cloudinary.com/dc22bmzlv/image/upload/chatlink_media/lib_885044940656003.png';
-                    fixed++;
-                }
-            }
-        }
-    }
-    saveJson(CHATS_FILE, chats);
-    backupToCloudinary(CHATS_FILE).catch(() => {});
-    res.json({ success: true, fixed });
-});
 
 // --- Template Sync (AiSensy Style) ---
 app.get('/api/templates/sync', async (req, res) => {
@@ -1184,10 +1173,16 @@ app.post('/webhook', (req, res) => {
                             const msgObj = chats[phone].find(m => m.id === status.id);
                             if (msgObj) {
                                 msgObj.status = status.status;
-                                if (status.status === 'failed' && status.errors && status.errors.length > 0) {
-                                    const err = status.errors[0];
-                                    msgObj.error = `Error ${err.code}: ${err.title} - ${err.message}${err.error_data && err.error_data.details ? ' (' + err.error_data.details + ')' : ''}`;
-                                    console.log(`[Webhook] Failed msg to ${phone}: ${msgObj.error}`);
+                                if (status.status === 'failed') {
+                                    if (status.errors && status.errors.length > 0) {
+                                        const err = status.errors[0];
+                                        msgObj.error = `Error ${err.code}: ${err.title} - ${err.message}${err.error_data && err.error_data.details ? ' (' + err.error_data.details + ')' : ''}`;
+                                        console.log(`[Webhook] Failed msg to ${phone}: ${msgObj.error}`);
+                                    } else {
+                                        // Failed but no error details — save raw status for debugging
+                                        msgObj.error = `Failed (no error details from Meta) | raw: ${JSON.stringify(status)}`;
+                                        console.log(`[Webhook] Failed msg to ${phone} with NO error details. Raw status:`, JSON.stringify(status));
+                                    }
                                 }
                                 if (status.pricing) {
                                     msgObj.pricing = {
@@ -1923,6 +1918,7 @@ async function runQueueBatch(queue, batchSize, settings) {
                 headerType: queue.headerType || null,
                 headerImageUrl: headerImageUrl,
                 timestamp: Date.now(),
+                sentAt: Date.now(),
                 status: 'sent',
                 campaignName: queue.campaignName || null,
                 tags: queue.tags || []
@@ -1974,6 +1970,12 @@ async function runQueueBatch(queue, batchSize, settings) {
         });
     }
     saveJson(QUEUE_FILE, queue);
+
+    // Post-batch verification: wait 30s then check actual status from Meta API
+    const batchPhones = batch.map(c => c.parsedPhone);
+    const batchSettings = { ...settings };
+    verifyBatchStatus(batchPhones, batchSettings).catch(err => console.error('[Verify] Post-batch verification error:', err.message));
+
     } catch (err) {
         console.error('Queue batch crashed:', err);
         queue.status = 'error';
@@ -1986,6 +1988,184 @@ async function runQueueBatch(queue, batchSize, settings) {
         startNextQueuedCampaign();
     }
 }
+
+// --- Message Status Verification ---
+// After a campaign batch completes, wait and verify actual status from Meta API
+// Meta API accepts messages (returns 200 + wamid) but may silently drop them
+// This function queries Meta for the real status of messages stuck as "sent"
+
+async function verifyBatchStatus(batchPhones, settings) {
+    if (!settings.accessToken) return;
+    console.log(`[Verify] Waiting 30s for Meta status webhooks to arrive...`);
+    await new Promise(r => setTimeout(r, 30000));
+
+    const chats = getChats();
+    let checked = 0, updated = 0, stuck = 0;
+    const stuckMessages = [];
+
+    for (const phone of batchPhones) {
+        if (!chats[phone]) continue;
+        for (const msg of chats[phone]) {
+            if (msg.from !== 'me' || msg.status !== 'sent') continue;
+            if (!msg.id || !msg.id.startsWith('wamid.')) continue;
+            // Only check messages sent in the last 10 minutes
+            if (!msg.sentAt || (Date.now() - msg.sentAt) > 10 * 60 * 1000) continue;
+
+            checked++;
+            try {
+                const res = await axios.get(`https://graph.facebook.com/v20.0/${msg.id}`, {
+                    headers: { Authorization: `Bearer ${settings.accessToken}` },
+                    params: { fields: 'status,type,to' },
+                    timeout: 10000
+                });
+                const metaStatus = res.data?.status;
+                if (metaStatus && metaStatus !== 'sent') {
+                    msg.status = metaStatus;
+                    updated++;
+                    console.log(`[Verify] ${phone}: ${msg.id} → ${metaStatus}`);
+                } else if (!metaStatus) {
+                    // Meta accepted but no status — likely dropped
+                    console.log(`[Verify] ${phone}: ${msg.id} → no status from Meta (dropped?)`);
+                }
+            } catch (err) {
+                const errCode = err.response?.data?.error?.code;
+                // Error 100 = object does not exist, error 80007 = rate limit
+                if (errCode === 100 || err.response?.status === 404) {
+                    msg.status = 'failed';
+                    msg.error = 'Meta API: message not found — silently dropped during processing';
+                    updated++;
+                    stuckMessages.push({ phone, id: msg.id, error: 'not_found' });
+                    console.log(`[Verify] ${phone}: ${msg.id} → FAILED (not found on Meta)`);
+                } else if (errCode === 80007) {
+                    console.log(`[Verify] Rate limited, pausing verification...`);
+                    await new Promise(r => setTimeout(r, 5000));
+                } else {
+                    console.log(`[Verify] ${phone}: ${msg.id} → query error: ${err.response?.data?.error?.message || err.message}`);
+                }
+            }
+            // Rate limit: max 20 requests/second for Meta Graph API
+            await new Promise(r => setTimeout(r, 100));
+        }
+    }
+
+    if (updated > 0) {
+        saveJson(CHATS_FILE, chats);
+    }
+
+    console.log(`[Verify] Batch complete: checked=${checked}, updated=${updated}, stuck=${stuckMessages.length}`);
+    if (stuckMessages.length > 0) {
+        console.log(`[Verify] Stuck messages (silently dropped by Meta):`);
+        stuckMessages.forEach(m => console.log(`  - ${m.phone}: ${m.id}`));
+    }
+
+    io.emit('verify_complete', { checked, updated, stuck: stuckMessages.length });
+    return { checked, updated, stuck: stuckMessages.length, stuckMessages };
+}
+
+// Periodic checker: every 5 minutes, check messages stuck as "sent" for >5 minutes
+async function checkStuckMessages() {
+    const settings = getSettings();
+    if (!settings.accessToken || !settings.phoneNumberId) return;
+
+    const chats = getChats();
+    const now = Date.now();
+    const STUCK_THRESHOLD = 5 * 60 * 1000;
+    let checked = 0, updated = 0;
+    let rateLimited = false;
+
+    for (const [phone, history] of Object.entries(chats)) {
+        if (rateLimited) break;
+        for (const msg of history) {
+            if (msg.from !== 'me' || msg.status !== 'sent') continue;
+            if (!msg.id || !msg.id.startsWith('wamid.')) continue;
+            if (!msg.sentAt) {
+                // Backfill sentAt from timestamp for old messages
+                msg.sentAt = msg.timestamp;
+            }
+            if ((now - msg.sentAt) < STUCK_THRESHOLD) continue;
+
+            checked++;
+            try {
+                const res = await axios.get(`https://graph.facebook.com/v20.0/${msg.id}`, {
+                    headers: { Authorization: `Bearer ${settings.accessToken}` },
+                    params: { fields: 'status' },
+                    timeout: 10000
+                });
+                const metaStatus = res.data?.status;
+                if (metaStatus && metaStatus !== 'sent') {
+                    msg.status = metaStatus;
+                    updated++;
+                    console.log(`[StuckCheck] ${phone}: ${msg.id} → ${metaStatus}`);
+                }
+            } catch (err) {
+                const errCode = err.response?.data?.error?.code;
+                if (errCode === 100 || err.response?.status === 404) {
+                    msg.status = 'failed';
+                    msg.error = 'Meta API: message not found — silently dropped during processing';
+                    updated++;
+                    console.log(`[StuckCheck] ${phone}: ${msg.id} → FAILED (not found on Meta)`);
+                } else if (errCode === 80007) {
+                    console.log(`[StuckCheck] Rate limited, skipping remaining`);
+                    rateLimited = true;
+                    break;
+                }
+            }
+            await new Promise(r => setTimeout(r, 200));
+        }
+    }
+
+    if (updated > 0) {
+        saveJson(CHATS_FILE, chats);
+        io.emit('message_status_bulk_updated', { checked, updated });
+    }
+    if (checked > 0) {
+        console.log(`[StuckCheck] Checked ${checked} stuck messages, updated ${updated}`);
+    }
+}
+
+// API endpoint: manually trigger verification for stuck messages
+app.post('/api/verify-stuck', async (req, res) => {
+    const settings = getSettings();
+    if (!settings.accessToken) return res.status(400).json({ error: 'API credentials missing' });
+
+    const chats = getChats();
+    const now = Date.now();
+    const phonesToCheck = new Set();
+
+    Object.entries(chats).forEach(([phone, history]) => {
+        for (const msg of history) {
+            if (msg.from === 'me' && msg.status === 'sent' && msg.id?.startsWith('wamid.') && msg.sentAt && (now - msg.sentAt) > 5 * 60 * 1000) {
+                phonesToCheck.add(phone);
+            }
+        }
+    });
+
+    if (phonesToCheck.size === 0) {
+        return res.json({ message: 'No stuck messages found', checked: 0 });
+    }
+
+    res.json({ message: `Verifying ${phonesToCheck.size} contacts with stuck messages...`, checking: true });
+    verifyBatchStatus([...phonesToCheck], settings).catch(err => console.error('[Verify] Error:', err.message));
+});
+
+// API endpoint: get count of stuck messages
+app.get('/api/verify-stuck/count', (req, res) => {
+    const chats = getChats();
+    const now = Date.now();
+    let stuckCount = 0;
+    let oldest = null;
+
+    Object.values(chats).forEach(history => {
+        for (const msg of history) {
+            if (msg.from === 'me' && msg.status === 'sent' && msg.id?.startsWith('wamid.') && msg.sentAt && (now - msg.sentAt) > 5 * 60 * 1000) {
+                stuckCount++;
+                if (!oldest || msg.sentAt < oldest) oldest = msg.sentAt;
+            }
+        }
+    });
+
+    res.json({ stuckCount, oldestStuckAt: oldest, thresholdMinutes: 5 });
+});
 
 // Helper: filter & normalize contacts from raw parsed rows
 function buildFilteredContacts(rawList, skipExisting, skipInCRM) {
@@ -2284,6 +2464,7 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
                 headerType: headerType || null,
                 headerImageUrl: headerImageUrlD,
                 timestamp: Date.now(),
+                sentAt: Date.now(),
                 status: 'sent',
                 campaignName: campaignName || null,
                 tags: campaignTags || []
@@ -2352,6 +2533,7 @@ server.listen(PORT, async () => {
         const chats = getChats();
         let imgFixed = 0;
         let unsupportedFixed = 0;
+        let sentAtBackfilled = 0;
         for (const [phone, msgs] of Object.entries(chats)) {
             for (const msg of msgs) {
                 if (msg.type === 'template' && msg.from === 'me') {
@@ -2365,11 +2547,16 @@ server.listen(PORT, async () => {
                     msg.text = '[Message type not supported by your WhatsApp version]';
                     unsupportedFixed++;
                 }
+                // Backfill sentAt for old messages stuck as "sent" (needed for verification)
+                if (msg.from === 'me' && msg.status === 'sent' && !msg.sentAt) {
+                    msg.sentAt = msg.timestamp;
+                    sentAtBackfilled++;
+                }
             }
         }
-        if (imgFixed > 0 || unsupportedFixed > 0) {
+        if (imgFixed > 0 || unsupportedFixed > 0 || sentAtBackfilled > 0) {
             saveJson(CHATS_FILE, chats);
-            console.log(`[Startup] Fixed ${imgFixed} image URLs, ${unsupportedFixed} unsupported message types`);
+            console.log(`[Startup] Fixed ${imgFixed} image URLs, ${unsupportedFixed} unsupported types, backfilled ${sentAtBackfilled} sentAt timestamps`);
         }
     } catch (err) {
         console.error('Image fix failed:', err.message);
@@ -2378,6 +2565,11 @@ server.listen(PORT, async () => {
     // Backup to Cloudinary every 5 minutes
     setInterval(async () => {
         try { await backupToCloudinary(); } catch (e) { console.error('Auto-backup error:', e.message); }
+    }, 5 * 60 * 1000);
+
+    // Check stuck messages every 5 minutes (messages sent but no status from Meta)
+    setInterval(async () => {
+        try { await checkStuckMessages(); } catch (e) { console.error('Stuck message check error:', e.message); }
     }, 5 * 60 * 1000);
 
     // Backup on shutdown

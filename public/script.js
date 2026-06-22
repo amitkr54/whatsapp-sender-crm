@@ -1340,7 +1340,14 @@ function filterChatList(query) {
 function renderInboxList() {
     const list = document.getElementById('chat-list');
     list.innerHTML = '';
-    const sortedPhones = Object.keys(globalChats).sort((a, b) => {
+    // Only show contacts who have at least one reply (incoming message)
+    const engagedPhones = Object.keys(globalChats).filter(phone => {
+        return globalChats[phone].some(msg => msg.from !== 'me');
+    });
+    // Update engaged count badge
+    const countEl = document.getElementById('engaged-count');
+    if (countEl) countEl.textContent = engagedPhones.length > 0 ? `${engagedPhones.length} engaged` : '';
+    const sortedPhones = engagedPhones.sort((a, b) => {
         const lastA = globalChats[a][globalChats[a].length - 1]?.timestamp || 0;
         const lastB = globalChats[b][globalChats[b].length - 1]?.timestamp || 0;
         return lastB - lastA;
@@ -1358,7 +1365,7 @@ function renderInboxList() {
             <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(0,168,132,0.08); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
                 <i data-lucide="${chatSearchQuery ? 'search-x' : 'message-circle'}" style="width: 28px; height: 28px; color: var(--accent); opacity: 0.6;"></i>
             </div>
-            ${chatSearchQuery ? 'No chats found' : 'No chats yet'}
+            ${chatSearchQuery ? 'No chats found' : 'No replies yet — only contacts who reply will appear here'}
         </div>`;
         lucide.createIcons();
         return;
@@ -1415,6 +1422,16 @@ function renderInboxList() {
         list.appendChild(div);
     });
     lucide.createIcons();
+}
+
+// Open chat from Reports tab — switches to Inbox and opens the conversation
+function openChatFromReport(phone) {
+    // Switch to Inbox tab
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    const inboxBtn = document.querySelector('[data-tab="inbox"]');
+    if (inboxBtn) inboxBtn.click();
+    // Open the chat after a short delay to let inbox render
+    setTimeout(() => openChat(phone), 150);
 }
 
 function openChat(phone) {
@@ -2261,14 +2278,16 @@ let globalReportData = null;
 
 async function loadReports() {
     try {
-        const [res, tagRes, campRes] = await Promise.all([
+        const [res, tagRes, campRes, stuckRes] = await Promise.all([
             fetch('/api/reports/insights'),
             fetch('/api/reports/tags'),
-            fetch('/api/reports/campaigns')
+            fetch('/api/reports/campaigns'),
+            fetch('/api/verify-stuck/count')
         ]);
         const stats = await res.json();
         const tagData = await tagRes.json();
         const campData = await campRes.json();
+        const stuckData = await stuckRes.json();
         globalReportData = stats;
 
         // KPI Cards
@@ -2276,6 +2295,7 @@ async function loadReports() {
         document.getElementById('stat-delivered').innerText = stats.totalDelivered;
         document.getElementById('stat-read').innerText = stats.totalRead;
         document.getElementById('stat-replied').innerText = stats.totalReplies;
+        document.getElementById('stat-stuck').innerText = stuckData.stuckCount || 0;
 
         // Rate bars
         setRateBar('delivery', stats.deliveryRate);
@@ -2387,7 +2407,7 @@ async function loadReports() {
                 const pct = Math.round((r.replies / maxReplies) * 100);
                 const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
                 return `
-                <div style="display:flex; flex-direction:column; gap:4px;">
+                <div style="display:flex; flex-direction:column; gap:4px; cursor:pointer; padding:6px 8px; border-radius:8px; transition: background 0.2s;" onmouseover="this.style.background='rgba(167,139,250,0.1)'" onmouseout="this.style.background='transparent'" onclick="openChatFromReport('${r.phone}')">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:13px; font-weight:500; color:var(--text-main);">${medals[i]} ${r.name}</span>
                         <span style="font-size:12px; color:#a78bfa; font-weight:600;">${r.replies} replies</span>
@@ -2503,9 +2523,9 @@ function renderReportLog(contactLog) {
             ? `<span style="background:${sc.bg}; color:${sc.color}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; cursor:help;" title="${c.lastError.replace(/"/g, '&quot;')}">${sc.label}</span>`
             : `<span style="background:${sc.bg}; color:${sc.color}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${sc.label}</span>`;
         return `
-        <tr>
-            <td style="text-align:center;"><input type="checkbox" class="rpt-checkbox" data-phone="${c.phone}" ${isChecked} onchange="toggleReportSelect('${c.phone}', this.checked)" style="cursor:pointer;"></td>
-            <td style="font-weight:500;">${c.name}</td>
+        <tr style="cursor:pointer;" onclick="openChatFromReport('${c.phone}')">
+            <td style="text-align:center;" onclick="event.stopPropagation();"><input type="checkbox" class="rpt-checkbox" data-phone="${c.phone}" ${isChecked} onchange="toggleReportSelect('${c.phone}', this.checked)" style="cursor:pointer;"></td>
+            <td style="font-weight:500; color:var(--accent);">${c.name}</td>
             <td style="color:var(--text-dim); font-size:12px;">${c.phone}</td>
             <td style="text-align:center; font-weight:600;">${c.sent}</td>
             <td style="text-align:center; color:var(--accent);">${c.delivered}</td>
@@ -2637,7 +2657,7 @@ function renderCampaignComparison(campaigns) {
             : '<span style="color:var(--text-dim); font-size:11px;">—</span>';
         const replyRateColor = c.replyRate >= 15 ? '#00a884' : c.replyRate >= 8 ? '#53bdeb' : c.replyRate > 0 ? '#f59e0b' : 'var(--text-dim)';
         return `
-        <tr style="cursor:pointer;" onclick="openCampaignDrilldown('${c.name.replace(/'/g, "\\'")}')">
+        <tr style="cursor:pointer;" onclick="openCampaignDrilldown('${btoa(unescape(encodeURIComponent(c.name)))}')">
             <td style="font-weight:500;">${c.name}</td>
             <td>${tagsHtml}</td>
             <td style="text-align:center;">${c.uniqueContacts}</td>
@@ -2645,7 +2665,7 @@ function renderCampaignComparison(campaigns) {
             <td style="text-align:center; color:var(--accent);">${c.delivered}</td>
             <td style="text-align:center; color:#53bdeb;">${c.read}</td>
             <td style="text-align:center; color:#a78bfa;">${c.replied}</td>
-            <td style="text-align:center;"><span style="background:${replyRateColor}22; color:${replyRateColor}; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; cursor:pointer;" onclick="event.stopPropagation(); openTagDrilldown('${c.tags[0] || c.name}')">${c.replyRate}%</span></td>
+            <td style="text-align:center;"><span style="background:${replyRateColor}22; color:${replyRateColor}; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; cursor:pointer;" onclick="event.stopPropagation(); openTagDrilldown('${c.tags[0] || btoa(unescape(encodeURIComponent(c.name)))}')">${c.replyRate}%</span></td>
         </tr>`;
     }).join('');
 }
@@ -2762,7 +2782,8 @@ async function openTagDrilldown(tag) {
     }
 }
 
-async function openCampaignDrilldown(campaignName) {
+async function openCampaignDrilldown(encodedName) {
+    const campaignName = decodeURIComponent(escape(atob(encodedName)));
     document.getElementById('drilldown-title').textContent = `Campaign: ${campaignName}`;
     document.getElementById('drilldown-subtitle').textContent = 'Loading contacts...';
     document.getElementById('drilldown-stats').innerHTML = '';
@@ -2892,6 +2913,50 @@ function renderDrilldownTable(contacts) {
             <td style="text-align:center;">${billingBadge}</td>
         </tr>`;
     }).join('');
+}
+
+// Verify stuck messages — query Meta API for actual status
+async function verifyStuckMessages() {
+    const btn = document.getElementById('btn-verify-stuck');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" style="width:12px; animation: spin 1s linear infinite;"></i> Verifying...';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    try {
+        const res = await fetch('/api/verify-stuck', { method: 'POST' });
+        const data = await res.json();
+        if (data.checking) {
+            showToast(`Verifying stuck messages... ${data.message}`, 'info');
+        } else {
+            showToast(data.message || 'No stuck messages found', 'success');
+        }
+        // Refresh stuck count after verification
+        setTimeout(async () => {
+            try {
+                const countRes = await fetch('/api/verify-stuck/count');
+                const countData = await countRes.json();
+                document.getElementById('stat-stuck').innerText = countData.stuckCount || 0;
+            } catch(e) {}
+        }, 35000);
+    } catch(e) {
+        showToast('Verification failed: ' + e.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="refresh-cw" style="width:12px;"></i> Verify Now';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+}
+
+// Listen for bulk status updates from server
+if (typeof io !== 'undefined') {
+    const socket = io();
+    socket.on('message_status_bulk_updated', (data) => {
+        showToast(`Verified ${data.checked} messages, ${data.updated} updated`, 'success');
+        loadReports();
+    });
 }
 
 // Init
