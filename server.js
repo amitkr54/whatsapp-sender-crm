@@ -712,6 +712,7 @@ app.get('/api/reports/insights', (req, res) => {
         let sentCount = 0, readCount = 0, deliveredCount = 0, failedCount = 0, replyCount = 0;
         let lastSentStatus = 'sent';
         let lastSentTime = null;
+        let lastReplyTime = null;
         let lastError = null;
         let lastBillable = null;
         let lastPricingCategory = null;
@@ -750,6 +751,7 @@ app.get('/api/reports/insights', (req, res) => {
                 replyCount++;
                 stats.totalReplies++;
                 phonesReplied.add(phone);
+                if (!lastReplyTime || msg.timestamp > lastReplyTime) lastReplyTime = msg.timestamp;
                 if (stats.timeline[dateStr]) stats.timeline[dateStr].replies++;
                 stats.hourlyActivity[hour]++;
             }
@@ -767,6 +769,7 @@ app.get('/api/reports/insights', (req, res) => {
                 replyCount,
                 lastStatus: lastSentStatus,
                 lastTime: lastSentTime,
+                lastReplyTime,
                 lastError,
                 billable: lastBillable,
                 pricingCategory: lastPricingCategory,
@@ -818,10 +821,10 @@ app.get('/api/reports/insights', (req, res) => {
         gstRate: GST_RATE * 100
     };
 
-    // Top repliers (most replies received)
+    // Top repliers (most recently active)
     stats.topRepliers = stats.contactLog
         .filter(c => c.replyCount > 0)
-        .sort((a, b) => b.replyCount - a.replyCount)
+        .sort((a, b) => (b.lastReplyTime || 0) - (a.lastReplyTime || 0))
         .slice(0, 5)
         .map(c => ({ name: c.name, phone: c.phone, replies: c.replyCount }));
 
