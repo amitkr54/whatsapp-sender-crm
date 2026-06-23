@@ -884,11 +884,12 @@ app.get('/api/reports/campaigns', (req, res) => {
             if (msg.from !== 'me') return;
             const cname = msg.campaignName || 'Unknown Campaign';
             if (!campaignStats[cname]) {
-                campaignStats[cname] = { name: cname, sent: 0, delivered: 0, read: 0, replied: 0, contacts: new Set(), repliedContacts: new Set(), tags: new Set() };
+                campaignStats[cname] = { name: cname, sent: 0, delivered: 0, read: 0, replied: 0, contacts: new Set(), repliedContacts: new Set(), tags: new Set(), lastTime: 0 };
             }
             const cs = campaignStats[cname];
             cs.sent++;
             cs.contacts.add(phone);
+            if (msg.timestamp > cs.lastTime) cs.lastTime = msg.timestamp;
             if (msg.tags && msg.tags.length) msg.tags.forEach(t => cs.tags.add(t));
             if (msg.status === 'delivered' || msg.status === 'read') cs.delivered++;
             if (msg.status === 'read') cs.read++;
@@ -920,10 +921,11 @@ app.get('/api/reports/campaigns', (req, res) => {
         replied: cs.replied,
         uniqueContacts: cs.contacts.size,
         tags: Array.from(cs.tags),
+        lastTime: cs.lastTime,
         deliveryRate: cs.sent > 0 ? Math.round((cs.delivered / cs.sent) * 100) : 0,
         readRate: cs.sent > 0 ? Math.round((cs.read / cs.sent) * 100) : 0,
         replyRate: cs.contacts.size > 0 ? Math.round((cs.replied / cs.contacts.size) * 100) : 0
-    })).sort((a, b) => b.sent - a.sent);
+    })).sort((a, b) => b.lastTime - a.lastTime);
 
     res.json({ campaigns: result });
 });

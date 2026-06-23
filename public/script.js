@@ -2656,9 +2656,10 @@ function renderCampaignComparison(campaigns) {
             ? c.tags.map(t => `<span style="background:rgba(0,168,132,0.1); color:var(--accent); padding:2px 6px; border-radius:4px; font-size:11px; margin-right:3px;">${t}</span>`).join('')
             : '<span style="color:var(--text-dim); font-size:11px;">—</span>';
         const replyRateColor = c.replyRate >= 15 ? '#00a884' : c.replyRate >= 8 ? '#53bdeb' : c.replyRate > 0 ? '#f59e0b' : 'var(--text-dim)';
+        const dateStr = c.lastTime ? new Date(c.lastTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
         return `
         <tr style="cursor:pointer;" onclick="openCampaignDrilldown('${btoa(unescape(encodeURIComponent(c.name)))}')">
-            <td style="font-weight:500;">${c.name}</td>
+            <td><div style="font-weight:500;">${c.name}</div>${dateStr ? `<div style="font-size:11px; color:var(--text-dim); margin-top:2px;">${dateStr}</div>` : ''}</td>
             <td>${tagsHtml}</td>
             <td style="text-align:center;">${c.uniqueContacts}</td>
             <td style="text-align:center; font-weight:600;">${c.sent}</td>
