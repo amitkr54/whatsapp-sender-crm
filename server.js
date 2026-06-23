@@ -916,7 +916,9 @@ app.get('/api/reports/campaigns', (req, res) => {
     });
 
     // Convert Sets to counts and calculate rates
-    const result = Object.values(campaignStats).map(cs => ({
+    const result = Object.values(campaignStats)
+        .filter(cs => cs.name !== 'Unknown Campaign')
+        .map(cs => ({
         name: cs.name,
         sent: cs.sent,
         delivered: cs.delivered,
