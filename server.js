@@ -1765,6 +1765,17 @@ setInterval(async () => {
             }
 
             try {
+                // Run-time deduplication: remove contacts already messaged by earlier campaigns
+                if (sched.skipExisting) {
+                    const existingChats = getChats();
+                    const before = sched.contacts.length;
+                    sched.contacts = sched.contacts.filter(c => !existingChats[c.parsedPhone] || existingChats[c.parsedPhone].length === 0);
+                    const removed = before - sched.contacts.length;
+                    if (removed > 0) {
+                        console.log(`[Schedule] Run-time dedup: removed ${removed} already-messaged contacts, ${sched.contacts.length} remaining`);
+                    }
+                }
+
                 // Convert headerUrl to media_id if needed
                 if (!sched.headerMediaId && sched.headerUrl && sched.headerType && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(sched.headerType)) {
                     try {
