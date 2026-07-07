@@ -10,6 +10,9 @@ const xlsx = require('xlsx');
 const FormData = require('form-data');
 const cloudinary = require('cloudinary').v2;
 const crypto = require('crypto');
+const { MongoClient } = require('mongodb');
+const cron = require('node-cron');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -70,97 +73,301 @@ const QUEUE_FILE = path.join(__dirname, 'campaign_queue.json');
 const SCHEDULED_FILE = path.join(__dirname, 'scheduled_campaigns.json');
 const MEDIA_LIBRARY_FILE = path.join(__dirname, 'media_library.json');
 
+// --- MongoDB & Memory Cache Connection ---
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://whatsapp_admin:Whatsapp%402026@whatsappapi.0wo4yqn.mongodb.net/whatsapp_crm?appName=WhatsappAPI";
+const mongoClient = new MongoClient(MONGODB_URI);
+let db = null;
+
+// Memory Cache (synchronized with MongoDB)
+const memoryCache = {
+    settings: { accessToken: '', phoneNumberId: '', wabaId: '', verifyToken: 'whatsapp123' },
+    contacts: {},
+    chats: {},
+    notifications: [],
+    media_library: [],
+    scheduled_campaigns: [],
+    authorized_machines: [],
+    queue: null
+};
+
+// Snapshot copies to detect delta changes
+const cacheSnapshots = {
+    contacts: {},
+    chats: {}
+};
+
+async function initDatabase() {
+    try {
+        console.log('[MongoDB] Connecting...');
+        await mongoClient.connect();
+        db = mongoClient.db('whatsapp_crm');
+        console.log('[MongoDB] Connected successfully');
+
+        // Load all data into cache
+        console.log('[MongoDB] Loading caches...');
+        
+        // 1. Settings
+        const settingsDoc = await db.collection('settings').findOne({ _id: 'global' });
+        if (settingsDoc) {
+            const { _id, ...settingsData } = settingsDoc;
+            memoryCache.settings = settingsData;
+        }
+
+        // 2. Authorized Machines
+        const authDoc = await db.collection('authorized_machines').findOne({ _id: 'global' });
+        if (authDoc) {
+            memoryCache.authorized_machines = authDoc.list || [];
+        }
+
+        // 3. Notifications
+        const notifDoc = await db.collection('notifications').findOne({ _id: 'global' });
+        if (notifDoc) {
+            memoryCache.notifications = notifDoc.list || [];
+        }
+
+        // 4. Media Library
+        const mediaDoc = await db.collection('media_library').findOne({ _id: 'global' });
+        if (mediaDoc) {
+            memoryCache.media_library = mediaDoc.list || [];
+        }
+
+        // 5. Queue
+        const queueDoc = await db.collection('queue').findOne({ _id: 'current' });
+        if (queueDoc) {
+            const { _id, ...queueData } = queueDoc;
+            memoryCache.queue = queueData;
+        }
+
+        // 6. Contacts
+        const contactsList = await db.collection('contacts').find().toArray();
+        contactsList.forEach(doc => {
+            memoryCache.contacts[doc._id] = {
+                name: doc.name,
+                tags: doc.tags || [],
+                attributes: doc.attributes || {}
+            };
+        });
+        cacheSnapshots.contacts = JSON.parse(JSON.stringify(memoryCache.contacts));
+
+        // 7. Chats
+        const chatsList = await db.collection('chats').find().toArray();
+        chatsList.forEach(doc => {
+            memoryCache.chats[doc._id] = doc.messages || [];
+        });
+        cacheSnapshots.chats = JSON.parse(JSON.stringify(memoryCache.chats));
+
+        // 8. Scheduled Campaigns
+        const scheduledList = await db.collection('scheduled_campaigns').find().toArray();
+        memoryCache.scheduled_campaigns = scheduledList.map(doc => {
+            const { _id, ...rest } = doc;
+            return { id: doc._id, ...rest };
+        });
+
+        console.log(`[MongoDB] Cache loaded: ${Object.keys(memoryCache.contacts).length} contacts, ${Object.keys(memoryCache.chats).length} chats`);
+
+        // Start Change Streams to watch for external updates (e.g. from Render to Laptop)
+        startChangeStreams();
+
+    } catch (err) {
+        console.error('[MongoDB] Initialization failed:', err.message);
+        process.exit(1);
+    }
+}
+
+function startChangeStreams() {
+    console.log('[MongoDB] Starting Change Streams...');
+
+    // Watch chats
+    db.collection('chats').watch([], { fullDocument: 'updateLookup' }).on('change', next => {
+        try {
+            if (next.operationType === 'insert' || next.operationType === 'replace' || next.operationType === 'update') {
+                const phone = next.documentKey._id;
+                const fullDoc = next.fullDocument;
+                if (fullDoc) {
+                    memoryCache.chats[phone] = fullDoc.messages || [];
+                    cacheSnapshots.chats[phone] = JSON.parse(JSON.stringify(fullDoc.messages || []));
+                }
+            } else if (next.operationType === 'delete') {
+                const phone = next.documentKey._id;
+                delete memoryCache.chats[phone];
+                delete cacheSnapshots.chats[phone];
+            }
+        } catch (e) {
+            console.error('[ChangeStream] Chat error:', e.message);
+        }
+    });
+
+    // Watch contacts
+    db.collection('contacts').watch([], { fullDocument: 'updateLookup' }).on('change', next => {
+        try {
+            if (next.operationType === 'insert' || next.operationType === 'replace' || next.operationType === 'update') {
+                const phone = next.documentKey._id;
+                const fullDoc = next.fullDocument;
+                if (fullDoc) {
+                    memoryCache.contacts[phone] = {
+                        name: fullDoc.name,
+                        tags: fullDoc.tags || [],
+                        attributes: fullDoc.attributes || {}
+                    };
+                    cacheSnapshots.contacts[phone] = JSON.parse(JSON.stringify(memoryCache.contacts[phone]));
+                }
+            } else if (next.operationType === 'delete') {
+                const phone = next.documentKey._id;
+                delete memoryCache.contacts[phone];
+                delete cacheSnapshots.contacts[phone];
+            }
+        } catch (e) {
+            console.error('[ChangeStream] Contact error:', e.message);
+        }
+    });
+
+    // Watch settings
+    db.collection('settings').watch([], { fullDocument: 'updateLookup' }).on('change', next => {
+        try {
+            if (next.documentKey._id === 'global' && next.fullDocument) {
+                const { _id, ...settingsData } = next.fullDocument;
+                memoryCache.settings = settingsData;
+            }
+        } catch (e) {}
+    });
+
+    // Watch notifications
+    db.collection('notifications').watch([], { fullDocument: 'updateLookup' }).on('change', next => {
+        try {
+            if (next.documentKey._id === 'global' && next.fullDocument) {
+                memoryCache.notifications = next.fullDocument.list || [];
+            }
+        } catch (e) {}
+    });
+}
+
+function syncContactsDb(contacts) {
+    for (const [phone, contact] of Object.entries(contacts)) {
+        if (JSON.stringify(contact) !== JSON.stringify(cacheSnapshots.contacts[phone])) {
+            db.collection('contacts').replaceOne(
+                { _id: phone },
+                { _id: phone, name: contact.name, tags: contact.tags, attributes: contact.attributes },
+                { upsert: true }
+            ).catch(err => console.error(`[MongoDB] Error saving contact ${phone}:`, err.message));
+            cacheSnapshots.contacts[phone] = JSON.parse(JSON.stringify(contact));
+        }
+    }
+    // Delete missing
+    for (const phone of Object.keys(cacheSnapshots.contacts)) {
+        if (!contacts[phone]) {
+            db.collection('contacts').deleteOne({ _id: phone })
+                .catch(err => console.error(`[MongoDB] Error deleting contact ${phone}:`, err.message));
+            delete cacheSnapshots.contacts[phone];
+        }
+    }
+}
+
+function syncChatsDb(chats) {
+    for (const [phone, messages] of Object.entries(chats)) {
+        if (JSON.stringify(messages) !== JSON.stringify(cacheSnapshots.chats[phone])) {
+            db.collection('chats').replaceOne(
+                { _id: phone },
+                { _id: phone, messages },
+                { upsert: true }
+            ).catch(err => console.error(`[MongoDB] Error saving chat ${phone}:`, err.message));
+            cacheSnapshots.chats[phone] = JSON.parse(JSON.stringify(messages));
+        }
+    }
+    // Delete missing
+    for (const phone of Object.keys(cacheSnapshots.chats)) {
+        if (!chats[phone]) {
+            db.collection('chats').deleteOne({ _id: phone })
+                .catch(err => console.error(`[MongoDB] Error deleting chat ${phone}:`, err.message));
+            delete cacheSnapshots.chats[phone];
+        }
+    }
+}
+
+function syncScheduledDb(scheduled) {
+    for (const item of scheduled) {
+        const { id, ...rest } = item;
+        db.collection('scheduled_campaigns').replaceOne(
+            { _id: id },
+            { _id: id, ...rest },
+            { upsert: true }
+        ).catch(err => console.error(`[MongoDB] Error saving scheduled campaign ${id}:`, err.message));
+    }
+    // Delete missing
+    const currentIds = scheduled.map(item => item.id);
+    db.collection('scheduled_campaigns').deleteMany({ _id: { $nin: currentIds } })
+        .catch(err => console.error(`[MongoDB] Error cleaning scheduled campaigns:`, err.message));
+}
+
 function getMediaLibrary() {
     return getJson(MEDIA_LIBRARY_FILE, []);
 }
 
-// --- JSON Helpers ---
+// --- JSON Helpers (Re-routed to MongoDB Synced Cache) ---
 function getJson(file, defaultData = {}) {
-    if (fs.existsSync(file)) {
-        try { return JSON.parse(fs.readFileSync(file, 'utf8')); } 
-        catch(e) { return defaultData; }
-    }
+    if (file === SETTINGS_FILE) return memoryCache.settings;
+    if (file === CONTACTS_FILE) return memoryCache.contacts;
+    if (file === CHATS_FILE) return memoryCache.chats;
+    if (file === NOTIFICATIONS_FILE) return memoryCache.notifications;
+    if (file === MEDIA_LIBRARY_FILE) return memoryCache.media_library;
+    if (file === SCHEDULED_FILE) return memoryCache.scheduled_campaigns;
+    if (file === AUTHORIZED_MACHINES_FILE) return memoryCache.authorized_machines;
+    if (file === QUEUE_FILE) return memoryCache.queue || defaultData;
     return defaultData;
 }
+
 function saveJson(file, data) {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    if (file === SETTINGS_FILE) {
+        memoryCache.settings = data;
+        db.collection('settings').replaceOne({ _id: "global" }, { _id: "global", ...data }, { upsert: true }).catch(err => console.error('DB save settings error:', err.message));
+    }
+    else if (file === CONTACTS_FILE) {
+        memoryCache.contacts = data;
+        syncContactsDb(data);
+    }
+    else if (file === CHATS_FILE) {
+        memoryCache.chats = data;
+        syncChatsDb(data);
+    }
+    else if (file === NOTIFICATIONS_FILE) {
+        memoryCache.notifications = data;
+        db.collection('notifications').replaceOne({ _id: "global" }, { _id: "global", list: data }, { upsert: true }).catch(err => console.error('DB save notifications error:', err.message));
+    }
+    else if (file === MEDIA_LIBRARY_FILE) {
+        memoryCache.media_library = data;
+        db.collection('media_library').replaceOne({ _id: "global" }, { _id: "global", list: data }, { upsert: true }).catch(err => console.error('DB save media_library error:', err.message));
+    }
+    else if (file === SCHEDULED_FILE) {
+        memoryCache.scheduled_campaigns = data;
+        syncScheduledDb(data);
+    }
+    else if (file === AUTHORIZED_MACHINES_FILE) {
+        memoryCache.authorized_machines = data;
+        db.collection('authorized_machines').replaceOne({ _id: "global" }, { _id: "global", list: data }, { upsert: true }).catch(err => console.error('DB save authorized_machines error:', err.message));
+    }
+    else if (file === QUEUE_FILE) {
+        memoryCache.queue = data;
+        if (data) {
+            db.collection('queue').replaceOne({ _id: "current" }, { _id: "current", ...data }, { upsert: true }).catch(err => console.error('DB save queue error:', err.message));
+        } else {
+            db.collection('queue').deleteOne({ _id: "current" }).catch(err => console.error('DB delete queue error:', err.message));
+        }
+    }
 }
 
-// --- Cloudinary Backup (persists across Render deploys) ---
+// --- Cloudinary Backup (Mocked out, since MongoDB is persistent) ---
 const BACKUP_FILES = [CHATS_FILE, CONTACTS_FILE, NOTIFICATIONS_FILE, MEDIA_LIBRARY_FILE, AUTHORIZED_MACHINES_FILE, SCHEDULED_FILE];
 
 async function backupToCloudinary() {
-    const settings = getSettings();
-    if (!settings.cloudinaryCloudName || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) return;
-    
-    cloudinary.config({
-        cloud_name: settings.cloudinaryCloudName,
-        api_key: settings.cloudinaryApiKey,
-        api_secret: settings.cloudinaryApiSecret
-    });
-    
-    for (const filePath of BACKUP_FILES) {
-        try {
-            if (!fs.existsSync(filePath)) continue;
-            const data = fs.readFileSync(filePath, 'utf8');
-            const filename = path.basename(filePath);
-            const buffer = Buffer.from(data);
-            
-            await new Promise((resolve, reject) => {
-                const stream = cloudinary.uploader.upload_stream({
-                    folder: 'chatlink_backups',
-                    public_id: filename.replace('.json', ''),
-                    resource_type: 'raw',
-                    format: 'json',
-                    overwrite: true
-                }, (error, result) => {
-                    if (error) reject(error);
-                    else resolve(result);
-                });
-                stream.end(buffer);
-            });
-        } catch (err) {
-            console.error(`Backup failed for ${path.basename(filePath)}:`, err.message);
-        }
-    }
-    console.log('[Cloudinary] Backup completed at', new Date().toISOString());
+    // Persistent MongoDB Atlas makes manual backups redundant
 }
 
-// Debounced backup — waits 10s after last trigger before uploading.
-// Prevents hammering Cloudinary on every single webhook ping.
 let _backupDebounceTimer = null;
 function scheduleBackup() {
-    if (_backupDebounceTimer) clearTimeout(_backupDebounceTimer);
-    _backupDebounceTimer = setTimeout(() => {
-        backupToCloudinary().catch(e => console.error('[Cloudinary] Debounced backup failed:', e.message));
-    }, 10 * 1000); // 10 seconds after last activity
+    // Mocked out
 }
 
 async function restoreFromCloudinary() {
-    const settings = getSettings();
-    if (!settings.cloudinaryCloudName || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) return;
-    
-    cloudinary.config({
-        cloud_name: settings.cloudinaryCloudName,
-        api_key: settings.cloudinaryApiKey,
-        api_secret: settings.cloudinaryApiSecret
-    });
-    
-    for (const filePath of BACKUP_FILES) {
-        try {
-            const filename = path.basename(filePath);
-            const result = await cloudinary.api.resource(`chatlink_backups/${filename}`, { resource_type: 'raw' });
-            if (result && result.secure_url) {
-                const response = await axios.get(result.secure_url, { timeout: 10000 });
-                if (response.data && Object.keys(response.data).length > 0) {
-                    fs.writeFileSync(filePath, JSON.stringify(response.data, null, 2));
-                    console.log(`Restored ${filename} from Cloudinary`);
-                }
-            }
-        } catch (err) {
-            if (err.http_code !== 404) console.error(`Restore failed for ${path.basename(filePath)}:`, err.message);
-        }
-    }
+    // Hydrated directly from MongoDB on startup
 }
 
 function getSettings() {
@@ -2541,6 +2748,13 @@ process.on('unhandledRejection', (err) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
     console.log(`\n========================================`);
+    console.log(`Server starting on port ${PORT}...`);
+    console.log(`========================================`);
+
+    // 1. Initialize MongoDB and Hydrate memoryCache
+    await initDatabase();
+
+    console.log(`\n========================================`);
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`========================================`);
     
@@ -2548,16 +2762,22 @@ server.listen(PORT, async () => {
     if (process.env.APP_URL) {
         console.log(`Cloud URL: ${process.env.APP_URL}`);
         console.log(`Webhook URL: ${process.env.APP_URL}/webhook`);
+
+        // Render self-ping to prevent scaling to zero / sleeping
+        console.log('[Cron] Setting up Render self-ping every 10 minutes');
+        cron.schedule('*/10 * * * *', async () => {
+            try {
+                const pingUrl = `${process.env.APP_URL}/api/ping`;
+                console.log(`[Cron] Sending self-ping to: ${pingUrl}`);
+                const res = await axios.get(pingUrl);
+                console.log('[Cron] Self-ping status:', res.data?.status);
+            } catch (cronErr) {
+                console.error('[Cron] Self-ping failed:', cronErr.message);
+            }
+        });
     }
 
-    // Restore data from Cloudinary backup on startup
-    try {
-        await restoreFromCloudinary();
-    } catch (err) {
-        console.error('Cloudinary restore failed:', err.message);
-    }
-
-    // Fix template header image URLs after restore
+    // Fix template header image URLs after database load
     try {
         const CORRECT_IMG = 'https://res.cloudinary.com/dc22bmzlv/image/upload/v1781975075/chatlink_media/signage_template_header.png';
         const chats = getChats();
@@ -2592,20 +2812,15 @@ server.listen(PORT, async () => {
         console.error('Image fix failed:', err.message);
     }
 
-    // Backup to Cloudinary every 5 minutes
-    setInterval(async () => {
-        try { await backupToCloudinary(); } catch (e) { console.error('Auto-backup error:', e.message); }
-    }, 5 * 60 * 1000);
-
     // Check stuck messages every 5 minutes (messages sent but no status from Meta)
     setInterval(async () => {
         try { await checkStuckMessages(); } catch (e) { console.error('Stuck message check error:', e.message); }
     }, 5 * 60 * 1000);
 
-    // Backup on shutdown
+    // Shutdown handler
     const shutdown = async () => {
-        console.log('Shutting down, backing up data...');
-        try { await backupToCloudinary(); } catch (e) {}
+        console.log('Shutting down gracefully...');
+        try { await mongoClient.close(); } catch (e) {}
         process.exit(0);
     };
     process.on('SIGTERM', shutdown);
