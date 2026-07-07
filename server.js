@@ -123,7 +123,17 @@ async function backupToCloudinary() {
             console.error(`Backup failed for ${path.basename(filePath)}:`, err.message);
         }
     }
-    console.log('Cloudinary backup completed');
+    console.log('[Cloudinary] Backup completed at', new Date().toISOString());
+}
+
+// Debounced backup — waits 10s after last trigger before uploading.
+// Prevents hammering Cloudinary on every single webhook ping.
+let _backupDebounceTimer = null;
+function scheduleBackup() {
+    if (_backupDebounceTimer) clearTimeout(_backupDebounceTimer);
+    _backupDebounceTimer = setTimeout(() => {
+        backupToCloudinary().catch(e => console.error('[Cloudinary] Debounced backup failed:', e.message));
+    }, 10 * 1000); // 10 seconds after last activity
 }
 
 async function restoreFromCloudinary() {
@@ -1165,6 +1175,7 @@ app.post('/webhook', (req, res) => {
                         if (!chats[phone].find(m => m.id === msg.id)) {
                             chats[phone].push(msgRecord);
                             saveJson(CHATS_FILE, chats);
+                            scheduleBackup(); // Persist to Cloudinary quickly so restart doesn't lose this msg
                             // 4. Emit Event
                             io.emit('incoming_message', { phone, contact: contacts[phone], message: msgRecord });
                         }
@@ -1201,6 +1212,7 @@ app.post('/webhook', (req, res) => {
                                     console.log(`[Webhook] Pricing for ${phone}: billable=${status.pricing.billable} type=${status.pricing.type} category=${status.pricing.category}`);
                                 }
                                 saveJson(CHATS_FILE, chats);
+                                scheduleBackup(); // Keep delivery status synced to Cloudinary
                             }
                         }
 
