@@ -564,7 +564,7 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/settings', (req, res) => res.json(getSettings()));
 app.post('/api/settings', (req, res) => {
-    saveJson(SETTINGS_FILE, req.body);
+    saveJson(SETTINGS_FILE, { ...getSettings(), ...req.body });
     res.json({ success: true });
 });
 
