@@ -1,3 +1,6 @@
+if (!global.crypto) {
+    global.crypto = require('crypto');
+}
 const express = require('express');
 const { Server } = require('socket.io');
 const http = require('http');
