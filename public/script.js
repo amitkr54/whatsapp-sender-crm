@@ -2775,7 +2775,7 @@ function renderCampaignComparison(campaigns) {
     const tbody = document.getElementById('campaign-comparison-body');
     if (!tbody) return;
     if (!campaigns || campaigns.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:20px;">No campaign data yet. Launch a campaign with tags to see comparison.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-dim); padding:20px;">No campaign data yet. Launch a campaign with tags to see comparison.</td></tr>';
         return;
     }
     tbody.innerHTML = campaigns.map(c => {
@@ -2784,9 +2784,11 @@ function renderCampaignComparison(campaigns) {
             : '<span style="color:var(--text-dim); font-size:11px;">—</span>';
         const replyRateColor = c.replyRate >= 15 ? '#00a884' : c.replyRate >= 8 ? '#53bdeb' : c.replyRate > 0 ? '#f59e0b' : 'var(--text-dim)';
         const dateStr = c.lastTime ? new Date(c.lastTime).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+        const tplHtml = c.templateName ? `<span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-size:11px;">${c.templateName}</span>` : '<span style="color:var(--text-faint); font-size:11px;">—</span>';
         return `
         <tr style="cursor:pointer;" onclick="openCampaignDrilldown('${btoa(unescape(encodeURIComponent(c.name)))}')">
             <td><div style="font-weight:500;">${c.name}</div>${dateStr ? `<div style="font-size:11px; color:var(--text-dim); margin-top:2px;">${dateStr}</div>` : ''}</td>
+            <td>${tplHtml}</td>
             <td>${tagsHtml}</td>
             <td style="text-align:center;">${c.uniqueContacts}</td>
             <td style="text-align:center; font-weight:600;">${c.sent}</td>

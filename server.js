@@ -1107,9 +1107,18 @@ app.get('/api/reports/campaigns', (req, res) => {
             if (msg.from !== 'me') return;
             const cname = msg.campaignName || 'Unknown Campaign';
             if (!campaignStats[cname]) {
-                campaignStats[cname] = { name: cname, sent: 0, delivered: 0, read: 0, replied: 0, contacts: new Set(), repliedContacts: new Set(), tags: new Set(), lastTime: 0 };
+                campaignStats[cname] = { name: cname, templateName: msg.templateName || null, sent: 0, delivered: 0, read: 0, replied: 0, contacts: new Set(), repliedContacts: new Set(), tags: new Set(), lastTime: 0 };
             }
             const cs = campaignStats[cname];
+            if (msg.templateName && !cs.templateName) cs.templateName = msg.templateName;
+            else if (!cs.templateName && msg.text && msg.text.startsWith('[Campaign: ')) {
+                const match = msg.text.match(/\[Campaign:\s*([^\]]+)\]/);
+                if (match) cs.templateName = match[1];
+            } else if (!cs.templateName && msg.text && msg.text.startsWith('[Template: ')) {
+                const match = msg.text.match(/\[Template:\s*([^\]]+)\]/);
+                if (match) cs.templateName = match[1];
+            }
+            
             cs.sent++;
             cs.contacts.add(phone);
             if (msg.timestamp > cs.lastTime) cs.lastTime = msg.timestamp;
@@ -1140,6 +1149,7 @@ app.get('/api/reports/campaigns', (req, res) => {
         .filter(cs => cs.name !== 'Unknown Campaign')
         .map(cs => ({
         name: cs.name,
+        templateName: cs.templateName,
         sent: cs.sent,
         delivered: cs.delivered,
         read: cs.read,
@@ -2709,6 +2719,7 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
                 sentAt: Date.now(),
                 status: 'sent',
                 campaignName: campaignName || null,
+                templateName: templateName || null,
                 tags: campaignTags || []
             });
             saveJson(CHATS_FILE, chats);
