@@ -1905,7 +1905,7 @@ app.post('/api/schedule/create', upload.fields([{ name: 'file', maxCount: 1 }, {
         
         const scheduled = {
             id,
-            campaignName: campaignName || `Scheduled ${scheduleDate.toLocaleDateString()}`,
+            campaignName: campaignName || `Scheduled ${scheduleDate.toLocaleDateString()} ${scheduleDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
             templateName, templateBody, languageCode: languageCode || 'en_US',
             mapping: mappingObj, dailyLimit, skipExisting, skipInCRM,
             contacts: filteredList,
@@ -2591,7 +2591,9 @@ app.post('/api/send', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'hea
         });
         const campaignTags = Array.from(allTags);
 
-        const resolvedCampaignName = campaignName || `Campaign ${new Date().toLocaleDateString()}`;
+        const _now = new Date();
+        const _timeStr = _now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const resolvedCampaignName = campaignName || `Campaign ${_now.toLocaleDateString()} ${_timeStr}`;
 
         if (dailyLimit > 0 && filteredList.length > dailyLimit) {
             // Queue mode: save entire list, send first batch
