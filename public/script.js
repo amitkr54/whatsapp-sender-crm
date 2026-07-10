@@ -1706,28 +1706,163 @@ function switchAudienceTab(tab) {
     }
 }
 
+// Multi-tag CRM contact selection state
+let crmTagData = {}; // { tagName: [contacts] }
+let crmSelectedTags = []; // [{ tag, limit, available }]
+let crmAllContactsData = {};
+
 async function loadCRMTagOptions() {
     const res = await fetch('/api/contacts');
     const contacts = await res.json();
+    crmAllContactsData = contacts;
+
     const tagSet = new Set();
     Object.values(contacts).forEach(c => (c.tags || []).forEach(t => tagSet.add(t)));
-    const select = document.getElementById('crm-tag-filter');
-    select.innerHTML = '<option value="">All Contacts</option>';
+
+    // Pre-build per-tag contact lists
+    crmTagData = {};
     tagSet.forEach(tag => {
-        const opt = document.createElement('option');
-        opt.value = tag; opt.text = tag;
-        select.appendChild(opt);
+        crmTagData[tag] = Object.entries(contacts)
+            .filter(([, c]) => (c.tags || []).includes(tag))
+            .map(([phone, c]) => ({ ...c, phone }));
     });
-    select.onchange = () => updateCRMContactCount(contacts);
-    updateCRMContactCount(contacts);
+
+    // Populate the add-tag dropdown (only tags not already added)
+    refreshTagDropdown();
+
+    // Restore UI state
+    updateCRMContactCount();
 }
 
-function updateCRMContactCount(contacts) {
-    const tag = document.getElementById('crm-tag-filter').value;
-    const all = Object.values(contacts);
-    const filtered = tag ? all.filter(c => (c.tags || []).includes(tag)) : all;
-    document.getElementById('crm-contact-count').innerText = `✅ ${filtered.length} contact${filtered.length !== 1 ? 's' : ''} will be targeted`;
+function refreshTagDropdown() {
+    const addedTags = new Set(crmSelectedTags.map(r => r.tag));
+    const select = document.getElementById('crm-add-tag-select');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- Select a tag to add --</option>';
+    Object.keys(crmTagData).sort().forEach(tag => {
+        if (!addedTags.has(tag)) {
+            const opt = document.createElement('option');
+            opt.value = tag;
+            opt.text = `${tag} (${crmTagData[tag].length})`;
+            select.appendChild(opt);
+        }
+    });
 }
+
+function addCampaignTagRow() {
+    const select = document.getElementById('crm-add-tag-select');
+    const tag = select.value;
+    if (!tag) return;
+    const available = crmTagData[tag]?.length || 0;
+
+    // Add to state
+    crmSelectedTags.push({ tag, limit: available, available });
+
+    // Uncheck "All Contacts" when a tag is added
+    document.getElementById('crm-all-contacts').checked = false;
+
+    renderCampaignTagRows();
+    refreshTagDropdown();
+    updateCRMContactCount();
+}
+
+function removeCampaignTagRow(tag) {
+    crmSelectedTags = crmSelectedTags.filter(r => r.tag !== tag);
+    renderCampaignTagRows();
+    refreshTagDropdown();
+    updateCRMContactCount();
+}
+
+function renderCampaignTagRows() {
+    const container = document.getElementById('crm-tag-rows');
+    if (!container) return;
+    container.innerHTML = crmSelectedTags.map((r, i) => `
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
+            <span style="flex:1; font-size:13px; color:var(--text-main); font-weight:500;">${r.tag}</span>
+            <span style="font-size:11px; color:var(--text-dim); white-space:nowrap;">${r.available} avail.</span>
+            <input type="number" min="1" max="${r.available}" value="${r.limit}"
+                style="width:70px; padding:5px 8px; background:rgba(0,0,0,0.25); border:1px solid rgba(0,168,132,0.3); border-radius:6px; color:var(--accent); font-size:13px; font-weight:600; text-align:center;"
+                onchange="updateTagLimit(${i}, this.value)"
+                oninput="updateTagLimit(${i}, this.value)">
+            <button onclick="removeCampaignTagRow('${r.tag}')"
+                style="background:none; border:none; color:var(--text-dim); cursor:pointer; padding:2px 4px; font-size:16px; line-height:1;">&times;</button>
+        </div>
+    `).join('');
+}
+
+function updateTagLimit(index, val) {
+    const n = parseInt(val) || 0;
+    const max = crmSelectedTags[index].available;
+    crmSelectedTags[index].limit = Math.min(n, max);
+    updateCRMContactCount();
+}
+
+function toggleAllContacts() {
+    const checked = document.getElementById('crm-all-contacts').checked;
+    if (checked) {
+        // Clear selected tags when "All Contacts" is chosen
+        crmSelectedTags = [];
+        renderCampaignTagRows();
+        refreshTagDropdown();
+    }
+    updateCRMContactCount();
+}
+
+function updateCRMContactCount() {
+    const allChecked = document.getElementById('crm-all-contacts')?.checked;
+    const countEl = document.getElementById('crm-contact-count');
+    if (!countEl) return;
+
+    if (allChecked) {
+        const total = Object.keys(crmAllContactsData).length;
+        countEl.innerText = `✅ All ${total} contacts will be targeted`;
+        return;
+    }
+    if (crmSelectedTags.length === 0) {
+        countEl.innerText = '— add a tag or select All Contacts —';
+        return;
+    }
+
+    // Calculate unique contacts across all selected tags with limits
+    const seen = new Set();
+    crmSelectedTags.forEach(({ tag, limit }) => {
+        const tagContacts = crmTagData[tag] || [];
+        let taken = 0;
+        for (const c of tagContacts) {
+            if (taken >= limit) break;
+            if (!seen.has(c.phone)) { seen.add(c.phone); taken++; }
+        }
+    });
+    const total = seen.size;
+    const breakdown = crmSelectedTags.map(r => `${r.tag}: ${r.limit}`).join(' + ');
+    countEl.innerHTML = `✅ <strong>${total}</strong> unique contacts targeted<br><span style="font-size:10px; color:var(--text-dim);">${breakdown}</span>`;
+}
+
+function buildCRMContactList() {
+    const allChecked = document.getElementById('crm-all-contacts')?.checked;
+
+    if (allChecked) {
+        return Object.entries(crmAllContactsData).map(([phone, c]) => ({ ...c, phone }));
+    }
+
+    // Multi-tag deduplication with per-tag limits
+    const seen = new Set();
+    const result = [];
+    crmSelectedTags.forEach(({ tag, limit }) => {
+        const tagContacts = crmTagData[tag] || [];
+        let taken = 0;
+        for (const c of tagContacts) {
+            if (taken >= limit) break;
+            if (!seen.has(c.phone)) {
+                seen.add(c.phone);
+                result.push(c);
+                taken++;
+            }
+        }
+    });
+    return result;
+}
+
 
 async function startCampaign() {
     const templateName = document.getElementById('template-name').value;
@@ -1747,13 +1882,9 @@ async function startCampaign() {
     let formData = new FormData();
 
     if (currentAudienceTab === 'crm') {
-        // Build a CSV from CRM contacts and append it
-        const res = await fetch('/api/contacts');
-        const contacts = await res.json();
-        const tag = document.getElementById('crm-tag-filter').value;
-        let list = Object.entries(contacts).map(([phone, c]) => ({ ...c, phone }));
-        if (tag) list = list.filter(c => (c.tags || []).includes(tag));
-        if (list.length === 0) return alert('No CRM contacts match the selected filter.');
+        // Build contact list using new multi-tag selector
+        const list = buildCRMContactList();
+        if (list.length === 0) return alert('No CRM contacts match the selected filter. Please add a tag or select "All Contacts".');
         // Build CSV string
         const csvRows = ['Phone,Name', ...list.map(c => `${c.phone},${(c.name || '').replace(/,/g, ' ')}`)].join('\n');
         const blob = new Blob([csvRows], { type: 'text/csv' });
@@ -1862,12 +1993,8 @@ async function scheduleCampaign() {
     let formData = new FormData();
 
     if (currentAudienceTab === 'crm') {
-        const res = await fetch('/api/contacts');
-        const contacts = await res.json();
-        const tag = document.getElementById('crm-tag-filter').value;
-        let list = Object.entries(contacts).map(([phone, c]) => ({ ...c, phone }));
-        if (tag) list = list.filter(c => (c.tags || []).includes(tag));
-        if (list.length === 0) return alert('No CRM contacts match the selected filter.');
+        const list = buildCRMContactList();
+        if (list.length === 0) return alert('No CRM contacts match the selected filter. Please add a tag or select "All Contacts".');
         const csvRows = ['Phone,Name', ...list.map(c => `${c.phone},${(c.name || '').replace(/,/g, ' ')}`)].join('\n');
         const blob = new Blob([csvRows], { type: 'text/csv' });
         formData.append('file', blob, 'crm_contacts.csv');

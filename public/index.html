@@ -400,14 +400,28 @@
                                 <!-- CRM Contacts Panel -->
                                 <div id="audience-crm-panel" class="hidden">
                                     <div style="background: rgba(0,168,132,0.06); border: 1px solid rgba(0,168,132,0.2); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-                                        <div>
-                                            <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 6px;">Filter by Tag (optional)</label>
-                                            <select id="crm-tag-filter" style="width: 100%; font-size: 13px; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-main);">
-                                                <option value="">All Contacts</option>
-                                            </select>
+                                <div>
+                                            <label style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 8px;">Filter by Tag (optional)</label>
+
+                                            <!-- All Contacts shortcut -->
+                                            <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; cursor:pointer; font-size:13px; color:var(--text-dim);">
+                                                <input type="checkbox" id="crm-all-contacts" style="accent-color:var(--accent); width:15px; height:15px;" onchange="toggleAllContacts()">
+                                                Use All Contacts (no tag filter)
+                                            </label>
+
+                                            <!-- Multi-tag rows container -->
+                                            <div id="crm-tag-rows" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+
+                                            <!-- Add tag button -->
+                                            <div style="display:flex; gap:8px; align-items:center;">
+                                                <select id="crm-add-tag-select" style="flex:1; font-size:12px; padding:8px 10px; background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-main);">
+                                                    <option value="">-- Select a tag to add --</option>
+                                                </select>
+                                                <button onclick="addCampaignTagRow()" style="padding:8px 14px; background:rgba(0,168,132,0.15); border:1px solid rgba(0,168,132,0.3); color:var(--accent); border-radius:var(--radius-sm); cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap;">+ Add Tag</button>
+                                            </div>
                                         </div>
-                                        <div id="crm-contact-count" style="font-size: 12px; color: var(--accent); font-weight: 600; padding: 8px; background: rgba(0,168,132,0.08); border-radius: var(--radius-sm); text-align: center;">
-                                            — select a tag to preview count —
+                                        <div id="crm-contact-count" style="font-size:12px; color:var(--accent); font-weight:600; padding:8px; background:rgba(0,168,132,0.08); border-radius:var(--radius-sm); text-align:center;">
+                                            — add a tag or select All Contacts —
                                         </div>
                                     </div>
                                 </div>
