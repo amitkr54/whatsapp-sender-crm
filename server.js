@@ -16,6 +16,7 @@ const crypto = require('crypto');
 const { MongoClient } = require('mongodb');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 
 const app = express();
@@ -565,7 +566,12 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/settings', (req, res) => res.json(getSettings()));
 app.post('/api/settings', (req, res) => {
-    saveJson(SETTINGS_FILE, { ...getSettings(), ...req.body });
+    const current = getSettings();
+    const updated = { ...current, ...req.body };
+    if (!req.body.resendApiKey && current.resendApiKey) {
+        updated.resendApiKey = current.resendApiKey;
+    }
+    saveJson(SETTINGS_FILE, updated);
     res.json({ success: true });
 });
 
@@ -616,11 +622,8 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
     try {
         const settings = getSettings();
         if (!settings.emailAlertsEnabled) return;
-        
-        const transporter = getEmailTransporter(settings);
-        if (!transporter) return;
 
-        const recipient = (settings.emailRecipient || settings.emailUser || '').trim();
+        const recipient = (settings.emailRecipient || settings.emailUser || 'pankaj_thakur87@yahoo.com').trim();
         if (!recipient) return;
 
         const phoneClean = (phone || '').toString().replace(/\D/g, '');
@@ -633,35 +636,62 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
             ? `WhatsApp message from ${senderName} (+${phoneClean})`
             : `WhatsApp message from +${phoneClean}`;
 
+        const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
+                <div style="background: linear-gradient(135deg, #00a884, #008f6f); color: white; padding: 20px 24px;">
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 700;">💬 New WhatsApp Message</h2>
+                    <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Received at ${timeStr}</p>
+                </div>
+                <div style="padding: 24px; background-color: #ffffff;">
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+                        ${senderName ? `<p style="margin: 0 0 8px; font-size: 14px; color: #64748b;"><strong>Client Name:</strong> <span style="color: #0f172a; font-size: 15px; font-weight: 600;">${senderName}</span></p>` : ''}
+                        <p style="margin: 0; font-size: 14px; color: #64748b;"><strong>Mobile Number:</strong> <a href="https://wa.me/${phoneClean}" style="color: #00a884; font-weight: 600; text-decoration: none;">+${phoneClean}</a></p>
+                        ${msgRecord.type && msgRecord.type !== 'text' ? `<p style="margin: 8px 0 0; font-size: 13px; color: #64748b;"><strong>Attachment:</strong> <span style="color: #0284c7; font-weight: 600;">[${msgRecord.type.toUpperCase()}]</span></p>` : ''}
+                    </div>
+                    <div style="margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Message:</div>
+                    <div style="background-color: #e7f8ef; border-radius: 8px; padding: 18px 20px; font-size: 16px; color: #0f172a; line-height: 1.6; border-left: 5px solid #00a884; word-break: break-word;">
+                        ${msgText.replace(/\n/g, '<br>')}
+                    </div>
+                    <div style="margin-top: 24px; text-align: center;">
+                        <a href="https://wa.me/${phoneClean}" style="background-color: #00a884; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Reply on WhatsApp &rarr;</a>
+                    </div>
+                </div>
+                <div style="background-color: #f1f5f9; padding: 12px 24px; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0;">
+                    ChatLink WhatsApp CRM • Real-time Lead Notification
+                </div>
+            </div>
+        `;
+
+        // 1. Resend (HTTPS Port 443 — Guaranteed to work on Render & Cloud)
+        const rKey = (settings.resendApiKey || process.env.RESEND_API_KEY || '').trim();
+        if (settings.emailProvider === 'resend' || (rKey && settings.emailProvider !== 'gmail' && settings.emailProvider !== 'yahoo')) {
+            if (rKey) {
+                const resendClient = new Resend(rKey);
+                const fromAddr = settings.resendFromEmail || 'ChatLink Alerts <onboarding@resend.dev>';
+                const { data, error } = await resendClient.emails.send({
+                    from: fromAddr,
+                    to: [recipient],
+                    subject: emailSubject,
+                    html: emailHtml
+                });
+                if (error) {
+                    console.error('[Resend Error]', error);
+                } else {
+                    console.log(`[Resend Alert] Successfully forwarded message from ${phone} to ${recipient} (id: ${data?.id})`);
+                }
+                return;
+            }
+        }
+
+        // 2. Standard SMTP Fallback (Nodemailer)
+        const transporter = getEmailTransporter(settings);
+        if (!transporter) return;
+
         const mailOptions = {
             from: `"WhatsApp Alert - ${displayName}" <${settings.emailUser.trim()}>`,
             to: recipient,
             subject: emailSubject,
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
-                    <div style="background: linear-gradient(135deg, #00a884, #008f6f); color: white; padding: 20px 24px;">
-                        <h2 style="margin: 0; font-size: 20px; font-weight: 700;">💬 New WhatsApp Message</h2>
-                        <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Received at ${timeStr}</p>
-                    </div>
-                    <div style="padding: 24px; background-color: #ffffff;">
-                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
-                            ${senderName ? `<p style="margin: 0 0 8px; font-size: 14px; color: #64748b;"><strong>Client Name:</strong> <span style="color: #0f172a; font-size: 15px; font-weight: 600;">${senderName}</span></p>` : ''}
-                            <p style="margin: 0; font-size: 14px; color: #64748b;"><strong>Mobile Number:</strong> <a href="https://wa.me/${phoneClean}" style="color: #00a884; font-weight: 600; text-decoration: none;">+${phoneClean}</a></p>
-                            ${msgRecord.type && msgRecord.type !== 'text' ? `<p style="margin: 8px 0 0; font-size: 13px; color: #64748b;"><strong>Attachment:</strong> <span style="color: #0284c7; font-weight: 600;">[${msgRecord.type.toUpperCase()}]</span></p>` : ''}
-                        </div>
-                        <div style="margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Message:</div>
-                        <div style="background-color: #e7f8ef; border-radius: 8px; padding: 18px 20px; font-size: 16px; color: #0f172a; line-height: 1.6; border-left: 5px solid #00a884; word-break: break-word;">
-                            ${msgText.replace(/\n/g, '<br>')}
-                        </div>
-                        <div style="margin-top: 24px; text-align: center;">
-                            <a href="https://wa.me/${phoneClean}" style="background-color: #00a884; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Reply on WhatsApp &rarr;</a>
-                        </div>
-                    </div>
-                    <div style="background-color: #f1f5f9; padding: 12px 24px; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0;">
-                        ChatLink WhatsApp CRM • Real-time Lead Notification
-                    </div>
-                </div>
-            `
+            html: emailHtml
         };
 
         const info = await transporter.sendMail(mailOptions);
@@ -674,6 +704,38 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
 app.post('/api/settings/test-email', async (req, res) => {
     try {
         const testSettings = { ...getSettings(), ...req.body };
+        const recipient = (testSettings.emailRecipient || testSettings.emailUser || 'pankaj_thakur87@yahoo.com').trim();
+
+        if (testSettings.emailProvider === 'resend' || testSettings.resendApiKey) {
+            const activeResendKey = (testSettings.resendApiKey || getSettings().resendApiKey || process.env.RESEND_API_KEY || '').trim();
+            if (!activeResendKey) {
+                return res.status(400).json({ error: 'Please enter your Resend API Key (starts with re_).' });
+            }
+            const resendClient = new Resend(activeResendKey);
+            const fromAddr = testSettings.resendFromEmail || 'ChatLink Alert <onboarding@resend.dev>';
+            const { data, error } = await resendClient.emails.send({
+                from: fromAddr,
+                to: [recipient],
+                subject: '✅ ChatLink Test Email Alert (via Resend HTTPS)',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                        <div style="background-color: #00a884; color: white; padding: 18px 24px;">
+                            <h2 style="margin: 0; font-size: 20px;">✅ Resend Connected Successfully!</h2>
+                        </div>
+                        <div style="padding: 24px; background-color: #fafafa;">
+                            <p style="font-size: 15px; color: #333; line-height: 1.5;">
+                                Your email forwarding via <strong>Resend HTTPS</strong> is working! Incoming WhatsApp messages will now be delivered to <strong>${recipient}</strong> 24/7 in the cloud without port blocks.
+                            </p>
+                        </div>
+                    </div>
+                `
+            });
+            if (error) {
+                return res.status(500).json({ error: error.message || 'Resend failed to send email.' });
+            }
+            return res.json({ success: true, message: `Test email sent successfully via Resend to ${recipient}!` });
+        }
+
         if (!testSettings.emailUser || !testSettings.emailPass) {
             return res.status(400).json({ error: 'Please enter both Email Address and App Password.' });
         }
@@ -681,7 +743,6 @@ app.post('/api/settings/test-email', async (req, res) => {
         if (!transporter) {
             return res.status(400).json({ error: 'Failed to initialize email transporter.' });
         }
-        const recipient = (testSettings.emailRecipient || testSettings.emailUser).trim();
         await transporter.verify();
         await transporter.sendMail({
             from: `"ChatLink Alert" <${testSettings.emailUser.trim()}>`,
@@ -703,7 +764,7 @@ app.post('/api/settings/test-email', async (req, res) => {
         res.json({ success: true, message: `Test email sent successfully to ${recipient}!` });
     } catch (err) {
         console.error('[Test Email Error]', err.message);
-        res.status(500).json({ error: err.message || 'Failed to send test email. Please check your email credentials.' });
+        res.status(500).json({ error: err.message || 'Failed to send test email. Please check your credentials.' });
     }
 });
 

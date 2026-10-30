@@ -8,7 +8,9 @@
   "cloudinaryApiKey": "447344179315577",
   "cloudinaryApiSecret": "biZg5sGUJxksIO16LSbvpKhDnBo",
   "emailAlertsEnabled": true,
-  "emailProvider": "gmail",
+  "emailProvider": "resend",
+  "resendApiKey": "",
+  "resendFromEmail": "ChatLink Alerts <onboarding@resend.dev>",
   "emailUser": "signageworkssolution@gmail.com",
   "emailPass": "zhld mais jden nwux",
   "emailRecipient": "pankaj_thakur87@yahoo.com"

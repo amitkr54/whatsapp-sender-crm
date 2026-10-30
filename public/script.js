@@ -136,12 +136,16 @@ async function loadSettings() {
     if (chk) chk.checked = !!settings.emailAlertsEnabled;
     const providerSel = document.getElementById('email-provider');
     if (providerSel && settings.emailProvider) providerSel.value = settings.emailProvider;
+    const resendKey = document.getElementById('resend-api-key');
+    if (resendKey) resendKey.value = settings.resendApiKey || '';
+    const resendFrom = document.getElementById('resend-from-email');
+    if (resendFrom) resendFrom.value = settings.resendFromEmail || '';
     const emailUser = document.getElementById('email-user');
-    if (emailUser) emailUser.value = settings.emailUser || 'pankaj_thakur87@yahoo.com';
+    if (emailUser) emailUser.value = settings.emailUser || 'signageworkssolution@gmail.com';
     const emailPass = document.getElementById('email-pass');
     if (emailPass) emailPass.value = settings.emailPass || '';
     const emailRecipient = document.getElementById('email-recipient');
-    if (emailRecipient) emailRecipient.value = settings.emailRecipient || settings.emailUser || 'pankaj_thakur87@yahoo.com';
+    if (emailRecipient) emailRecipient.value = settings.emailRecipient || 'pankaj_thakur87@yahoo.com';
     const smtpHost = document.getElementById('email-smtp-host');
     if (smtpHost) smtpHost.value = settings.emailSmtpHost || '';
     const smtpPort = document.getElementById('email-smtp-port');
@@ -218,16 +222,20 @@ function copyWebhookUrl() {
 
 // --- Email Forwarding Handlers ---
 function handleEmailProviderChange() {
-    const provider = document.getElementById('email-provider')?.value || 'yahoo';
+    const provider = document.getElementById('email-provider')?.value || 'resend';
+    const resendFields = document.getElementById('email-resend-fields');
+    const smtpRow = document.getElementById('email-smtp-credentials-row');
     const customFields = document.getElementById('email-custom-smtp-fields');
     const note = document.getElementById('email-provider-note');
 
-    if (customFields) {
-        customFields.style.display = provider === 'custom' ? 'grid' : 'none';
-    }
+    if (resendFields) resendFields.style.display = provider === 'resend' ? 'grid' : 'none';
+    if (smtpRow) smtpRow.style.display = (provider === 'gmail' || provider === 'yahoo' || provider === 'custom') ? 'grid' : 'none';
+    if (customFields) customFields.style.display = provider === 'custom' ? 'grid' : 'none';
 
     if (note) {
-        if (provider === 'yahoo') {
+        if (provider === 'resend') {
+            note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Resend Cloud API:</span> 100% cloud-compatible, never blocked by Render. Connects over HTTPS and delivers directly to your Yahoo Mail inbox.`;
+        } else if (provider === 'yahoo') {
             note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Yahoo Note:</span> Generate an App Password in <a href="https://login.yahoo.com/account/security" target="_blank" style="color: #60a5fa; text-decoration: underline;">Yahoo Security Settings</a> &rarr; Generate App Password. Paste the 16 letters into the password field.`;
         } else if (provider === 'gmail') {
             note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Gmail Note:</span> Turn on 2-Step Verification in Google Account &rarr; Search "App Passwords" &rarr; Create App Password for "WhatsApp CRM" and paste the 16 letters here.`;
@@ -235,6 +243,20 @@ function handleEmailProviderChange() {
             note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Custom SMTP:</span> Enter your SMTP host and port (typically port 465 for SSL or 587 for TLS).`;
         }
     }
+}
+
+function toggleResendKeyVisibility() {
+    const input = document.getElementById('resend-api-key');
+    const icon = document.getElementById('toggle-resend-key-icon');
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+        input.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+    }
+    lucide.createIcons();
 }
 
 function toggleEmailPassVisibility() {
@@ -254,7 +276,9 @@ function toggleEmailPassVisibility() {
 async function saveEmailSettings() {
     const payload = {
         emailAlertsEnabled: document.getElementById('email-alerts-enabled')?.checked || false,
-        emailProvider: document.getElementById('email-provider')?.value || 'yahoo',
+        emailProvider: document.getElementById('email-provider')?.value || 'resend',
+        resendApiKey: (document.getElementById('resend-api-key')?.value || '').trim(),
+        resendFromEmail: (document.getElementById('resend-from-email')?.value || '').trim(),
         emailUser: (document.getElementById('email-user')?.value || '').trim(),
         emailPass: (document.getElementById('email-pass')?.value || '').trim(),
         emailRecipient: (document.getElementById('email-recipient')?.value || '').trim(),
@@ -282,8 +306,11 @@ async function saveEmailSettings() {
 async function sendTestEmail() {
     const btn = document.getElementById('btn-test-email');
     const status = document.getElementById('email-test-status');
+    const provider = document.getElementById('email-provider')?.value || 'resend';
     const payload = {
-        emailProvider: document.getElementById('email-provider')?.value || 'yahoo',
+        emailProvider: provider,
+        resendApiKey: (document.getElementById('resend-api-key')?.value || '').trim(),
+        resendFromEmail: (document.getElementById('resend-from-email')?.value || '').trim(),
         emailUser: (document.getElementById('email-user')?.value || '').trim(),
         emailPass: (document.getElementById('email-pass')?.value || '').trim(),
         emailRecipient: (document.getElementById('email-recipient')?.value || '').trim(),
@@ -291,7 +318,15 @@ async function sendTestEmail() {
         emailSmtpPort: (document.getElementById('email-smtp-port')?.value || '').trim()
     };
 
-    if (!payload.emailUser || !payload.emailPass) {
+    if (provider === 'resend' && !payload.resendApiKey) {
+        if (status) {
+            status.style.color = '#ef4444';
+            status.innerText = '⚠️ Please enter your Resend API Key (starts with re_).';
+        }
+        return showToast('Please enter your Resend API Key', 'error');
+    }
+
+    if (provider !== 'resend' && (!payload.emailUser || !payload.emailPass)) {
         if (status) {
             status.style.color = '#ef4444';
             status.innerText = '⚠️ Please enter both Email Address and App Password first.';

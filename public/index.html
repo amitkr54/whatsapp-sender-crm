@@ -651,14 +651,38 @@
                         <div class="form-group" style="margin: 0;">
                             <label style="font-size: 12px; font-weight: 600;">Email Provider</label>
                             <select id="email-provider" onchange="handleEmailProviderChange()" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
-                                <option value="yahoo">Yahoo Mail (smtp.mail.yahoo.com)</option>
+                                <option value="resend">Resend Cloud API (resend.com) - 🌟 Works 24/7 on Cloud</option>
                                 <option value="gmail">Google Gmail (smtp.gmail.com)</option>
+                                <option value="yahoo">Yahoo Mail (smtp.mail.yahoo.com)</option>
                                 <option value="custom">Custom SMTP Server</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">Alert Recipient Email</label>
+                            <input type="email" id="email-recipient" placeholder="Where you want to receive alerts" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <!-- Resend Specific Fields -->
+                    <div id="email-resend-fields" style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">Resend API Key <span style="color: #60a5fa;">(starts with re_)</span></label>
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <input type="password" id="resend-api-key" placeholder="re_123456789..." style="width: 100%; padding: 10px 38px 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                                <i data-lucide="eye" id="toggle-resend-key-icon" onclick="toggleResendKeyVisibility()" style="position: absolute; right: 12px; cursor: pointer; width: 16px; color: var(--text-dim);"></i>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">From Address (Optional)</label>
+                            <input type="text" id="resend-from-email" placeholder="onboarding@resend.dev" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <!-- SMTP Specific Fields (Gmail / Yahoo / Custom) -->
+                    <div id="email-smtp-credentials-row" style="display: none; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin: 0;">
                             <label style="font-size: 12px; font-weight: 600;">Sender Email Address</label>
-                            <input type="email" id="email-user" placeholder="e.g. pankaj_thakur87@yahoo.com" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                            <input type="email" id="email-user" placeholder="e.g. yourname@gmail.com" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
                         </div>
                         <div class="form-group" style="margin: 0;">
                             <label style="font-size: 12px; font-weight: 600;">App Password (16 Letters)</label>
@@ -666,10 +690,6 @@
                                 <input type="password" id="email-pass" placeholder="e.g. abcd efgh ijkl mnop" style="width: 100%; padding: 10px 38px 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
                                 <i data-lucide="eye" id="toggle-email-pass-icon" onclick="toggleEmailPassVisibility()" style="position: absolute; right: 12px; cursor: pointer; width: 16px; color: var(--text-dim);"></i>
                             </div>
-                        </div>
-                        <div class="form-group" style="margin: 0;">
-                            <label style="font-size: 12px; font-weight: 600;">Alert Recipient Email</label>
-                            <input type="email" id="email-recipient" placeholder="Where you want to receive alerts" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
                         </div>
                     </div>
 
@@ -685,7 +705,7 @@
                     </div>
 
                     <div id="email-provider-note" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.5;">
-                        <span style="color: #60a5fa; font-weight: 600;">💡 Yahoo Note:</span> Generate an App Password in <a href="https://login.yahoo.com/account/security" target="_blank" style="color: #60a5fa; text-decoration: underline;">Yahoo Security Settings</a> &rarr; Generate App Password. Paste the 16 letters into the password field.
+                        <span style="color: #60a5fa; font-weight: 600;">💡 Resend Note:</span> Get a free API key at <a href="https://resend.com" target="_blank" style="color: #60a5fa; text-decoration: underline;">resend.com</a> (3,000 free emails/month). Paste the key starting with <code>re_</code>.
                     </div>
 
                     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
