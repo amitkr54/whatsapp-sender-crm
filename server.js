@@ -474,13 +474,48 @@ app.get('/media/proxy/:mediaId', async (req, res) => {
 
 app.use('/media', express.static(MEDIA_DIR));
 
-async function downloadMedia(mediaId, type, mimeType) {
+function getExtensionFromMime(mimeType, type) {
+    if (!mimeType) {
+        if (type === 'image') return '.jpg';
+        if (type === 'video') return '.mp4';
+        if (type === 'audio') return '.mp3';
+        if (type === 'document') return '.pdf';
+        return '.bin';
+    }
+    const clean = mimeType.split(';')[0].trim().toLowerCase();
+    const map = {
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/png': '.png',
+        'image/webp': '.webp',
+        'image/gif': '.gif',
+        'video/mp4': '.mp4',
+        'video/3gpp': '.3gp',
+        'audio/aac': '.aac',
+        'audio/mp4': '.m4a',
+        'audio/mpeg': '.mp3',
+        'audio/ogg': '.ogg',
+        'application/pdf': '.pdf',
+        'application/vnd.ms-excel': '.xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'text/plain': '.txt',
+        'text/csv': '.csv'
+    };
+    if (map[clean]) return map[clean];
+    const sub = clean.split('/')[1];
+    return sub ? `.${sub}` : '.bin';
+}
+
+async function fetchMediaBuffer(mediaId, type, mimeType, origFilename) {
     const settings = getSettings();
-    if (!settings.accessToken) return null;
+    if (!settings.accessToken || !mediaId) return null;
     
     const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = getExtensionFromMime(mimeType, type);
+    const filename = origFilename || `${type || 'attachment'}_${Date.now()}${ext}`;
     
-    // Configure Cloudinary if credentials are available
     const hasCloudinary = settings.cloudinaryCloudName && settings.cloudinaryApiKey && settings.cloudinaryApiSecret;
     if (hasCloudinary) {
         cloudinary.config({
@@ -491,33 +526,29 @@ async function downloadMedia(mediaId, type, mimeType) {
     }
     
     try {
-        // Step 1: Get the media URL from Meta
         const metaRes = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
             headers: { Authorization: `Bearer ${settings.accessToken}` }
         });
         const mediaUrl = metaRes.data.url;
-        
         if (!mediaUrl) {
             console.error(`Media download: No URL returned for mediaId ${mediaId}`);
             return null;
         }
-        
-        // Step 2: Download the actual file
-        const ext = mimeType ? '.' + mimeType.split('/')[1].split(';')[0] : '.bin';
-        const filename = `${safeId}${ext}`;
-        
+
         const fileRes = await axios.get(mediaUrl, {
             headers: { Authorization: `Bearer ${settings.accessToken}` },
             responseType: 'arraybuffer',
             timeout: 30000
         });
-        
+
         if (!fileRes.data || fileRes.data.length === 0) {
             console.error(`Media download: Empty response for ${mediaId}`);
             return null;
         }
-        
-        // Step 3a: Upload to Cloudinary if configured
+
+        const buffer = Buffer.from(fileRes.data);
+        let secureUrl = null;
+
         if (hasCloudinary) {
             try {
                 const result = await new Promise((resolve, reject) => {
@@ -529,21 +560,30 @@ async function downloadMedia(mediaId, type, mimeType) {
                         if (error) reject(error);
                         else resolve(result);
                     });
-                    uploadStream.end(Buffer.from(fileRes.data));
+                    uploadStream.end(buffer);
                 });
-                console.log(`Cloudinary uploaded: ${filename} -> ${result.secure_url}`);
-                return result.secure_url;
+                secureUrl = result.secure_url;
+                console.log(`Cloudinary uploaded: ${filename} -> ${secureUrl}`);
             } catch (cloudErr) {
                 console.error('Cloudinary upload failed:', cloudErr.message);
             }
         }
-        
-        // No local storage — return Cloudinary URL or null
-        return null;
+
+        return {
+            filename,
+            buffer,
+            contentType: mimeType || fileRes.headers['content-type'] || 'application/octet-stream',
+            secureUrl
+        };
     } catch (err) {
-        console.error('Media download error:', err.response?.data || err.message);
+        console.error(`Media download error for ${mediaId}:`, err.response?.data || err.message);
         return null;
     }
+}
+
+async function downloadMedia(mediaId, type, mimeType, origFilename) {
+    const res = await fetchMediaBuffer(mediaId, type, mimeType, origFilename);
+    return res ? res.secureUrl : null;
 }
 
 // --- Settings API ---
@@ -632,9 +672,49 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
         const msgText = msgRecord.text || `[${msgRecord.type || 'Media message'}]`;
         const timeStr = new Date(msgRecord.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
+        // User requested: Subject contains only Name and Number (clean & no truncation)
         const emailSubject = senderName 
-            ? `WhatsApp message from ${senderName} (+${phoneClean})`
-            : `WhatsApp message from +${phoneClean}`;
+            ? `${senderName} (+${phoneClean})`
+            : `+${phoneClean}`;
+
+        // Fetch media attachment if incoming message has media
+        let emailAttachments = [];
+        let mediaFile = null;
+        if (msgRecord.mediaId) {
+            try {
+                mediaFile = await fetchMediaBuffer(msgRecord.mediaId, msgRecord.type, msgRecord.mimeType, msgRecord.filename);
+                if (mediaFile && mediaFile.buffer) {
+                    emailAttachments.push({
+                        filename: mediaFile.filename,
+                        content: mediaFile.buffer
+                    });
+                    if (mediaFile.secureUrl && !msgRecord.mediaUrl) {
+                        msgRecord.mediaUrl = mediaFile.secureUrl;
+                    }
+                }
+            } catch (mediaErr) {
+                console.error('[Email Notification] Media attachment fetch error:', mediaErr.message);
+            }
+        }
+
+        const attachmentHtml = mediaFile ? (
+            msgRecord.type === 'image' && mediaFile.secureUrl ? `
+                <div style="margin-top: 16px; text-align: center;">
+                    <a href="${mediaFile.secureUrl}" target="_blank">
+                        <img src="${mediaFile.secureUrl}" alt="Attached Image" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" />
+                    </a>
+                    <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">(Click image to view full size • Also attached to this email)</p>
+                </div>
+            ` : `
+                <div style="margin-top: 14px; padding: 12px 16px; background-color: #f1f5f9; border-radius: 8px; border-left: 4px solid #0284c7; font-size: 14px; color: #1e293b;">
+                    📎 <strong>Attached File:</strong> ${mediaFile.filename} <span style="font-size: 12px; color: #64748b;">(Attached to this email)</span>
+                </div>
+            `
+        ) : (msgRecord.type && msgRecord.type !== 'text' ? `
+            <div style="margin-top: 14px; padding: 10px 14px; background-color: #f8fafc; border-radius: 6px; font-size: 13px; color: #64748b;">
+                <strong>Attachment:</strong> <span style="color: #0284c7; font-weight: 600;">[${msgRecord.type.toUpperCase()}]</span>
+            </div>
+        ` : '');
 
         const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
@@ -646,12 +726,12 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
                     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
                         ${senderName ? `<p style="margin: 0 0 8px; font-size: 14px; color: #64748b;"><strong>Client Name:</strong> <span style="color: #0f172a; font-size: 15px; font-weight: 600;">${senderName}</span></p>` : ''}
                         <p style="margin: 0; font-size: 14px; color: #64748b;"><strong>Mobile Number:</strong> <a href="https://wa.me/${phoneClean}" style="color: #00a884; font-weight: 600; text-decoration: none;">+${phoneClean}</a></p>
-                        ${msgRecord.type && msgRecord.type !== 'text' ? `<p style="margin: 8px 0 0; font-size: 13px; color: #64748b;"><strong>Attachment:</strong> <span style="color: #0284c7; font-weight: 600;">[${msgRecord.type.toUpperCase()}]</span></p>` : ''}
                     </div>
                     <div style="margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Message:</div>
                     <div style="background-color: #e7f8ef; border-radius: 8px; padding: 18px 20px; font-size: 16px; color: #0f172a; line-height: 1.6; border-left: 5px solid #00a884; word-break: break-word;">
                         ${msgText.replace(/\n/g, '<br>')}
                     </div>
+                    ${attachmentHtml}
                     <div style="margin-top: 24px; text-align: center;">
                         <a href="https://wa.me/${phoneClean}" style="background-color: #00a884; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Reply on WhatsApp &rarr;</a>
                     </div>
@@ -668,16 +748,20 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
             if (rKey) {
                 const resendClient = new Resend(rKey);
                 const fromAddr = settings.resendFromEmail || 'ChatLink Alerts <onboarding@resend.dev>';
-                const { data, error } = await resendClient.emails.send({
+                const sendPayload = {
                     from: fromAddr,
                     to: [recipient],
                     subject: emailSubject,
                     html: emailHtml
-                });
+                };
+                if (emailAttachments.length > 0) {
+                    sendPayload.attachments = emailAttachments;
+                }
+                const { data, error } = await resendClient.emails.send(sendPayload);
                 if (error) {
                     console.error('[Resend Error]', error);
                 } else {
-                    console.log(`[Resend Alert] Successfully forwarded message from ${phone} to ${recipient} (id: ${data?.id})`);
+                    console.log(`[Resend Alert] Successfully forwarded message from ${phone} to ${recipient} (id: ${data?.id}, attachments: ${emailAttachments.length})`);
                 }
                 return;
             }
@@ -688,10 +772,11 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
         if (!transporter) return;
 
         const mailOptions = {
-            from: `"WhatsApp Alert - ${displayName}" <${settings.emailUser.trim()}>`,
+            from: `"ChatLink - ${displayName}" <${settings.emailUser.trim()}>`,
             to: recipient,
             subject: emailSubject,
-            html: emailHtml
+            html: emailHtml,
+            attachments: emailAttachments.length > 0 ? emailAttachments : undefined
         };
 
         const info = await transporter.sendMail(mailOptions);
