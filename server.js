@@ -623,35 +623,42 @@ async function sendEmailNotification(contactName, phone, msgRecord) {
         const recipient = (settings.emailRecipient || settings.emailUser || '').trim();
         if (!recipient) return;
 
-        const senderName = contactName || phone;
+        const phoneClean = (phone || '').toString().replace(/\D/g, '');
+        const senderName = contactName && contactName !== phone ? contactName : '';
+        const displayName = senderName || `+${phoneClean}`;
         const msgText = msgRecord.text || `[${msgRecord.type || 'Media message'}]`;
         const timeStr = new Date(msgRecord.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
+        const emailSubject = senderName 
+            ? `WhatsApp message from ${senderName} (+${phoneClean})`
+            : `WhatsApp message from +${phoneClean}`;
+
         const mailOptions = {
-            from: `"ChatLink Alert - ${senderName}" <${settings.emailUser.trim()}>`,
+            from: `"WhatsApp Alert - ${displayName}" <${settings.emailUser.trim()}>`,
             to: recipient,
-            subject: `💬 New WhatsApp from ${senderName} (${phone})`,
+            subject: emailSubject,
             html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-                    <div style="background-color: #00a884; color: white; padding: 18px 24px;">
-                        <h2 style="margin: 0; font-size: 20px;">New WhatsApp Message</h2>
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
+                    <div style="background: linear-gradient(135deg, #00a884, #008f6f); color: white; padding: 20px 24px;">
+                        <h2 style="margin: 0; font-size: 20px; font-weight: 700;">💬 New WhatsApp Message</h2>
                         <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Received at ${timeStr}</p>
                     </div>
-                    <div style="padding: 24px; background-color: #fafafa;">
-                        <div style="background-color: white; border: 1px solid #e6e6e6; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
-                            <p style="margin: 0 0 8px; font-size: 14px; color: #666;"><strong>Sender:</strong> <span style="color: #111;">${senderName}</span></p>
-                            <p style="margin: 0 0 8px; font-size: 14px; color: #666;"><strong>Phone:</strong> <a href="https://wa.me/${phone.replace(/[^0-9]/g, '')}" style="color: #00a884; text-decoration: none;">+${phone}</a></p>
-                            <p style="margin: 0; font-size: 14px; color: #666;"><strong>Type:</strong> ${msgRecord.type || 'text'}</p>
+                    <div style="padding: 24px; background-color: #ffffff;">
+                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+                            ${senderName ? `<p style="margin: 0 0 8px; font-size: 14px; color: #64748b;"><strong>Client Name:</strong> <span style="color: #0f172a; font-size: 15px; font-weight: 600;">${senderName}</span></p>` : ''}
+                            <p style="margin: 0; font-size: 14px; color: #64748b;"><strong>Mobile Number:</strong> <a href="https://wa.me/${phoneClean}" style="color: #00a884; font-weight: 600; text-decoration: none;">+${phoneClean}</a></p>
+                            ${msgRecord.type && msgRecord.type !== 'text' ? `<p style="margin: 8px 0 0; font-size: 13px; color: #64748b;"><strong>Attachment:</strong> <span style="color: #0284c7; font-weight: 600;">[${msgRecord.type.toUpperCase()}]</span></p>` : ''}
                         </div>
-                        <div style="background-color: #dcf8c6; border-radius: 8px; padding: 16px 20px; font-size: 15px; color: #111; line-height: 1.5; border-left: 4px solid #00a884;">
+                        <div style="margin-bottom: 8px; font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Message:</div>
+                        <div style="background-color: #e7f8ef; border-radius: 8px; padding: 18px 20px; font-size: 16px; color: #0f172a; line-height: 1.6; border-left: 5px solid #00a884; word-break: break-word;">
                             ${msgText.replace(/\n/g, '<br>')}
                         </div>
                         <div style="margin-top: 24px; text-align: center;">
-                            <a href="https://wa.me/${phone.replace(/[^0-9]/g, '')}" style="background-color: #00a884; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Open & Reply on WhatsApp</a>
+                            <a href="https://wa.me/${phoneClean}" style="background-color: #00a884; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Reply on WhatsApp &rarr;</a>
                         </div>
                     </div>
-                    <div style="background-color: #f0f0f0; padding: 12px 24px; font-size: 12px; color: #888; text-align: center;">
-                        ChatLink WhatsApp CRM • Real-time Notification
+                    <div style="background-color: #f1f5f9; padding: 12px 24px; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0;">
+                        ChatLink WhatsApp CRM • Real-time Lead Notification
                     </div>
                 </div>
             `
