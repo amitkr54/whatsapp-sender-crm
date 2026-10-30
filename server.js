@@ -15,6 +15,7 @@ const cloudinary = require('cloudinary').v2;
 const crypto = require('crypto');
 const { MongoClient } = require('mongodb');
 const cron = require('node-cron');
+const nodemailer = require('nodemailer');
 
 
 const app = express();
@@ -566,6 +567,137 @@ app.get('/api/settings', (req, res) => res.json(getSettings()));
 app.post('/api/settings', (req, res) => {
     saveJson(SETTINGS_FILE, { ...getSettings(), ...req.body });
     res.json({ success: true });
+});
+
+// --- Email Forwarding / Alert Helpers ---
+function getEmailTransporter(settings) {
+    const stgs = settings || getSettings();
+    if (!stgs.emailUser || !stgs.emailPass) {
+        return null;
+    }
+
+    const provider = stgs.emailProvider || 'yahoo';
+    let transportOptions = {};
+
+    if (provider === 'yahoo') {
+        transportOptions = {
+            host: 'smtp.mail.yahoo.com',
+            port: 465,
+            secure: true,
+            auth: {
+                user: stgs.emailUser.trim(),
+                pass: stgs.emailPass.replace(/\s+/g, '')
+            }
+        };
+    } else if (provider === 'gmail') {
+        transportOptions = {
+            service: 'gmail',
+            auth: {
+                user: stgs.emailUser.trim(),
+                pass: stgs.emailPass.replace(/\s+/g, '')
+            }
+        };
+    } else {
+        transportOptions = {
+            host: stgs.emailSmtpHost || 'smtp.mail.yahoo.com',
+            port: parseInt(stgs.emailSmtpPort) || 465,
+            secure: parseInt(stgs.emailSmtpPort) === 465 || !stgs.emailSmtpPort,
+            auth: {
+                user: stgs.emailUser.trim(),
+                pass: stgs.emailPass.replace(/\s+/g, '')
+            }
+        };
+    }
+
+    return nodemailer.createTransport(transportOptions);
+}
+
+async function sendEmailNotification(contactName, phone, msgRecord) {
+    try {
+        const settings = getSettings();
+        if (!settings.emailAlertsEnabled) return;
+        
+        const transporter = getEmailTransporter(settings);
+        if (!transporter) return;
+
+        const recipient = (settings.emailRecipient || settings.emailUser || '').trim();
+        if (!recipient) return;
+
+        const senderName = contactName || phone;
+        const msgText = msgRecord.text || `[${msgRecord.type || 'Media message'}]`;
+        const timeStr = new Date(msgRecord.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        const mailOptions = {
+            from: `"ChatLink Alert - ${senderName}" <${settings.emailUser.trim()}>`,
+            to: recipient,
+            subject: `💬 New WhatsApp from ${senderName} (${phone})`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                    <div style="background-color: #00a884; color: white; padding: 18px 24px;">
+                        <h2 style="margin: 0; font-size: 20px;">New WhatsApp Message</h2>
+                        <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Received at ${timeStr}</p>
+                    </div>
+                    <div style="padding: 24px; background-color: #fafafa;">
+                        <div style="background-color: white; border: 1px solid #e6e6e6; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+                            <p style="margin: 0 0 8px; font-size: 14px; color: #666;"><strong>Sender:</strong> <span style="color: #111;">${senderName}</span></p>
+                            <p style="margin: 0 0 8px; font-size: 14px; color: #666;"><strong>Phone:</strong> <a href="https://wa.me/${phone.replace(/[^0-9]/g, '')}" style="color: #00a884; text-decoration: none;">+${phone}</a></p>
+                            <p style="margin: 0; font-size: 14px; color: #666;"><strong>Type:</strong> ${msgRecord.type || 'text'}</p>
+                        </div>
+                        <div style="background-color: #dcf8c6; border-radius: 8px; padding: 16px 20px; font-size: 15px; color: #111; line-height: 1.5; border-left: 4px solid #00a884;">
+                            ${msgText.replace(/\n/g, '<br>')}
+                        </div>
+                        <div style="margin-top: 24px; text-align: center;">
+                            <a href="https://wa.me/${phone.replace(/[^0-9]/g, '')}" style="background-color: #00a884; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Open & Reply on WhatsApp</a>
+                        </div>
+                    </div>
+                    <div style="background-color: #f0f0f0; padding: 12px 24px; font-size: 12px; color: #888; text-align: center;">
+                        ChatLink WhatsApp CRM • Real-time Notification
+                    </div>
+                </div>
+            `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[Email Alert] Successfully forwarded message from ${phone} to ${recipient} (id: ${info.messageId})`);
+    } catch (err) {
+        console.error('[Email Alert Error]', err.message);
+    }
+}
+
+app.post('/api/settings/test-email', async (req, res) => {
+    try {
+        const testSettings = { ...getSettings(), ...req.body };
+        if (!testSettings.emailUser || !testSettings.emailPass) {
+            return res.status(400).json({ error: 'Please enter both Email Address and App Password.' });
+        }
+        const transporter = getEmailTransporter({ ...testSettings, emailAlertsEnabled: true });
+        if (!transporter) {
+            return res.status(400).json({ error: 'Failed to initialize email transporter.' });
+        }
+        const recipient = (testSettings.emailRecipient || testSettings.emailUser).trim();
+        await transporter.verify();
+        await transporter.sendMail({
+            from: `"ChatLink Alert" <${testSettings.emailUser.trim()}>`,
+            to: recipient,
+            subject: '✅ ChatLink Test Email Alert',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                    <div style="background-color: #00a884; color: white; padding: 18px 24px;">
+                        <h2 style="margin: 0; font-size: 20px;">✅ Test Email Succeeded!</h2>
+                    </div>
+                    <div style="padding: 24px; background-color: #fafafa;">
+                        <p style="font-size: 15px; color: #333; line-height: 1.5;">
+                            Your email forwarding is <strong>correctly configured</strong>. From now on, whenever a customer sends a message to your WhatsApp, an instant notification will be delivered to this email!
+                        </p>
+                    </div>
+                </div>
+            `
+        });
+        res.json({ success: true, message: `Test email sent successfully to ${recipient}!` });
+    } catch (err) {
+        console.error('[Test Email Error]', err.message);
+        res.status(500).json({ error: err.message || 'Failed to send test email. Please check your email credentials.' });
+    }
 });
 
 // --- Media Library API ---
@@ -1398,6 +1530,8 @@ app.post('/webhook', (req, res) => {
                             scheduleBackup(); // Persist to Cloudinary quickly so restart doesn't lose this msg
                             // 4. Emit Event
                             io.emit('incoming_message', { phone, contact: contacts[phone], message: msgRecord });
+                            // 5. Forward via Email notification
+                            sendEmailNotification(contactName, phone, msgRecord).catch(e => console.error('[Email Notification Error]', e.message));
                         }
                     }
 
@@ -2744,8 +2878,14 @@ async function startDirectCampaign(filteredList, templateName, templateBody, lan
 app.get('/api/ping', (req, res) => { res.json({ status: 'ok', time: new Date().toISOString() }); });
 
 app.get('/api/webhook-url', async (req, res) => {
-    // In cloud, the app's URL is the webhook URL
-    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    try {
+        const ngrokRes = await axios.get('http://127.0.0.1:4040/api/tunnels', { timeout: 1500 });
+        const tunnel = ngrokRes.data?.tunnels?.find(t => t.proto === 'https') || ngrokRes.data?.tunnels?.[0];
+        if (tunnel && tunnel.public_url) {
+            return res.json({ url: `${tunnel.public_url}/webhook` });
+        }
+    } catch(e) {}
+    const appUrl = process.env.APP_URL || 'https://procurer-affecting-hypnoses.ngrok-free.dev';
     res.json({ url: `${appUrl}/webhook` });
 });
 

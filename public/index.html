@@ -631,6 +631,73 @@
                     </ul>
                 </div>
                 <div class="account-grid" id="account-grid"></div>
+
+                <!-- Email Forwarding & Lead Alerts Card -->
+                <div class="card" style="margin-top: 25px; border-left: 4px solid #3b82f6; background: rgba(59, 130, 246, 0.04);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                        <h3 style="font-size: 16px; color: #60a5fa; display: flex; align-items: center; gap: 8px; margin: 0;">
+                            <i data-lucide="mail" style="width: 20px;"></i> Email Forwarding & Lead Alerts
+                        </h3>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.06); padding: 6px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border);">
+                            <input type="checkbox" id="email-alerts-enabled" style="accent-color: var(--accent); cursor: pointer; width: 16px; height: 16px;">
+                            <span>Enable Forwarding</span>
+                        </label>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.5;">
+                        Automatically forwards all incoming WhatsApp messages to your email so you get instant notifications on your phone and never miss a message.
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">Email Provider</label>
+                            <select id="email-provider" onchange="handleEmailProviderChange()" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                                <option value="yahoo">Yahoo Mail (smtp.mail.yahoo.com)</option>
+                                <option value="gmail">Google Gmail (smtp.gmail.com)</option>
+                                <option value="custom">Custom SMTP Server</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">Sender Email Address</label>
+                            <input type="email" id="email-user" placeholder="e.g. pankaj_thakur87@yahoo.com" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">App Password (16 Letters)</label>
+                            <div style="position: relative; display: flex; align-items: center;">
+                                <input type="password" id="email-pass" placeholder="e.g. abcd efgh ijkl mnop" style="width: 100%; padding: 10px 38px 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                                <i data-lucide="eye" id="toggle-email-pass-icon" onclick="toggleEmailPassVisibility()" style="position: absolute; right: 12px; cursor: pointer; width: 16px; color: var(--text-dim);"></i>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">Alert Recipient Email</label>
+                            <input type="email" id="email-recipient" placeholder="Where you want to receive alerts" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <div id="email-custom-smtp-fields" style="display: none; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">SMTP Host</label>
+                            <input type="text" id="email-smtp-host" placeholder="smtp.example.com" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 12px; font-weight: 600;">SMTP Port</label>
+                            <input type="number" id="email-smtp-port" placeholder="465" style="width: 100%; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <div id="email-provider-note" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 12px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.5;">
+                        <span style="color: #60a5fa; font-weight: 600;">💡 Yahoo Note:</span> Generate an App Password in <a href="https://login.yahoo.com/account/security" target="_blank" style="color: #60a5fa; text-decoration: underline;">Yahoo Security Settings</a> &rarr; Generate App Password. Paste the 16 letters into the password field.
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="saveEmailSettings()">
+                            <i data-lucide="save" style="width: 14px;"></i> Save Email Settings
+                        </button>
+                        <button class="btn btn-outline" id="btn-test-email" onclick="sendTestEmail()">
+                            <i data-lucide="send" style="width: 14px;"></i> Send Test Email
+                        </button>
+                        <span id="email-test-status" style="font-size: 12px; font-weight: 600;"></span>
+                    </div>
+                </div>
             </section>
 
             <section id="tab-reports" class="tab-content">

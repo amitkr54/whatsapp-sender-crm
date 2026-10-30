@@ -130,6 +130,24 @@ async function loadSettings() {
         lucide.createIcons();
         document.getElementById('active-accounts-count').innerText = '0';
     }
+
+    // Populate Email Forwarding Settings
+    const chk = document.getElementById('email-alerts-enabled');
+    if (chk) chk.checked = !!settings.emailAlertsEnabled;
+    const providerSel = document.getElementById('email-provider');
+    if (providerSel && settings.emailProvider) providerSel.value = settings.emailProvider;
+    const emailUser = document.getElementById('email-user');
+    if (emailUser) emailUser.value = settings.emailUser || 'pankaj_thakur87@yahoo.com';
+    const emailPass = document.getElementById('email-pass');
+    if (emailPass) emailPass.value = settings.emailPass || '';
+    const emailRecipient = document.getElementById('email-recipient');
+    if (emailRecipient) emailRecipient.value = settings.emailRecipient || settings.emailUser || 'pankaj_thakur87@yahoo.com';
+    const smtpHost = document.getElementById('email-smtp-host');
+    if (smtpHost) smtpHost.value = settings.emailSmtpHost || '';
+    const smtpPort = document.getElementById('email-smtp-port');
+    if (smtpPort) smtpPort.value = settings.emailSmtpPort || '465';
+    handleEmailProviderChange();
+    lucide.createIcons();
 }
 
 function showAddAccountModal() {
@@ -196,6 +214,126 @@ async function loadWebhookUrl() {
 function copyWebhookUrl() {
     navigator.clipboard.writeText(document.getElementById('webhook-url-display').dataset.url);
     showToast('Copied to clipboard!', 'success');
+}
+
+// --- Email Forwarding Handlers ---
+function handleEmailProviderChange() {
+    const provider = document.getElementById('email-provider')?.value || 'yahoo';
+    const customFields = document.getElementById('email-custom-smtp-fields');
+    const note = document.getElementById('email-provider-note');
+
+    if (customFields) {
+        customFields.style.display = provider === 'custom' ? 'grid' : 'none';
+    }
+
+    if (note) {
+        if (provider === 'yahoo') {
+            note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Yahoo Note:</span> Generate an App Password in <a href="https://login.yahoo.com/account/security" target="_blank" style="color: #60a5fa; text-decoration: underline;">Yahoo Security Settings</a> &rarr; Generate App Password. Paste the 16 letters into the password field.`;
+        } else if (provider === 'gmail') {
+            note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Gmail Note:</span> Turn on 2-Step Verification in Google Account &rarr; Search "App Passwords" &rarr; Create App Password for "WhatsApp CRM" and paste the 16 letters here.`;
+        } else {
+            note.innerHTML = `<span style="color: #60a5fa; font-weight: 600;">💡 Custom SMTP:</span> Enter your SMTP host and port (typically port 465 for SSL or 587 for TLS).`;
+        }
+    }
+}
+
+function toggleEmailPassVisibility() {
+    const input = document.getElementById('email-pass');
+    const icon = document.getElementById('toggle-email-pass-icon');
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+        input.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+    }
+    lucide.createIcons();
+}
+
+async function saveEmailSettings() {
+    const payload = {
+        emailAlertsEnabled: document.getElementById('email-alerts-enabled')?.checked || false,
+        emailProvider: document.getElementById('email-provider')?.value || 'yahoo',
+        emailUser: (document.getElementById('email-user')?.value || '').trim(),
+        emailPass: (document.getElementById('email-pass')?.value || '').trim(),
+        emailRecipient: (document.getElementById('email-recipient')?.value || '').trim(),
+        emailSmtpHost: (document.getElementById('email-smtp-host')?.value || '').trim(),
+        emailSmtpPort: (document.getElementById('email-smtp-port')?.value || '').trim()
+    };
+
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('✅ Email forwarding settings saved!', 'success');
+        } else {
+            showToast('❌ Failed to save settings.', 'error');
+        }
+    } catch (e) {
+        showToast('❌ Error saving settings: ' + e.message, 'error');
+    }
+}
+
+async function sendTestEmail() {
+    const btn = document.getElementById('btn-test-email');
+    const status = document.getElementById('email-test-status');
+    const payload = {
+        emailProvider: document.getElementById('email-provider')?.value || 'yahoo',
+        emailUser: (document.getElementById('email-user')?.value || '').trim(),
+        emailPass: (document.getElementById('email-pass')?.value || '').trim(),
+        emailRecipient: (document.getElementById('email-recipient')?.value || '').trim(),
+        emailSmtpHost: (document.getElementById('email-smtp-host')?.value || '').trim(),
+        emailSmtpPort: (document.getElementById('email-smtp-port')?.value || '').trim()
+    };
+
+    if (!payload.emailUser || !payload.emailPass) {
+        if (status) {
+            status.style.color = '#ef4444';
+            status.innerText = '⚠️ Please enter both Email Address and App Password first.';
+        }
+        return showToast('Please enter Email Address and App Password', 'error');
+    }
+
+    if (btn) btn.disabled = true;
+    if (status) {
+        status.style.color = '#60a5fa';
+        status.innerText = '⏳ Connecting and sending test email...';
+    }
+
+    try {
+        const res = await fetch('/api/settings/test-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (status) {
+                status.style.color = '#10b981';
+                status.innerText = '✅ Test email sent! Check your inbox.';
+            }
+            showToast(data.message || 'Test email sent successfully!', 'success');
+        } else {
+            if (status) {
+                status.style.color = '#ef4444';
+                status.innerText = '❌ ' + (data.error || 'Failed to send test email.');
+            }
+            showToast(data.error || 'Failed to send test email.', 'error');
+        }
+    } catch (e) {
+        if (status) {
+            status.style.color = '#ef4444';
+            status.innerText = '❌ Error: ' + e.message;
+        }
+        showToast('Error: ' + e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 // Template Syncing

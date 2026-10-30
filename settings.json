@@ -2,9 +2,14 @@
   "label": "Default",
   "phoneNumberId": "1241636532355346",
   "wabaId": "1929223831102427",
-  "accessToken": "EAASlCTzW48oBRtQLsItvNt7pCoLh4vOZAZAp7hx6LnwZCDZCRF019jiALYqksNrbjZBS5ZBuuPsUhZCfZBJynjgWSGbtubwoa7RGHOedl8GZAsa3CnhveskaFv4sbFL1SoZBFQHZAnXCSNvvsKTO3NvnfsODhFZAnnuEdO1B7tyjFf8ZBe2vygHPXFOfvVpxE9WLJ4ohZBZCd4OfwCu54PfZB4RfoMZCJQcAhvyndzMXbd8lSg0hM",
+  "accessToken": "EAASlCTzW48oBS8Q6yH37v99V4KVvNkGoZCFZAJswU1ZAVQEkZAHzxG48ZANCTI7p29eKN5h74PP3q1xE3vHc114FrSjbsFRm3awYIOZAH3DxCGJrYqY3dgaqke0N3fcZAC2V4g3l8lbsYlfWQ9oy2o2pgHFZBzQxh5NKA5OeO8ZBeIF50cDMEsmUxiZBPq4QERdo9yDQZDZD",
   "verifyToken": "whatsapp123",
   "cloudinaryCloudName": "dc22bmzlv",
   "cloudinaryApiKey": "447344179315577",
-  "cloudinaryApiSecret": "biZg5sGUJxksIO16LSbvpKhDnBo"
+  "cloudinaryApiSecret": "biZg5sGUJxksIO16LSbvpKhDnBo",
+  "emailAlertsEnabled": true,
+  "emailProvider": "gmail",
+  "emailUser": "signageworkssolution@gmail.com",
+  "emailPass": "zhld mais jden nwux",
+  "emailRecipient": "pankaj_thakur87@yahoo.com"
 }
